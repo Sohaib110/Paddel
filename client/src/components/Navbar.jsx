@@ -71,9 +71,9 @@ const Navbar = () => {
                             <div className="flex items-center gap-4">
                                 <NotificationBell />
                                 {user.role === 'ADMIN' && (
-                                    <Link to="/admin" className="text-text-secondary hover:text-padel-blue transition-colors" title="Admin Dashboard">
-                                        <Shield size={20} />
-                                    </Link>
+                                    <Button variant="outline" size="sm" onClick={() => navigate('/admin')}>
+                                        Admin
+                                    </Button>
                                 )}
                             </div>
                             <div className="flex items-center gap-4">
@@ -136,6 +136,11 @@ const Navbar = () => {
                             <div className="h-[1px] bg-light-border w-full" />
                             {user ? (
                                 <div className="flex flex-col gap-3">
+                                    {user.role === 'ADMIN' && (
+                                        <Button onClick={() => navigate('/admin')} className="w-full">
+                                            Admin
+                                        </Button>
+                                    )}
                                     <Button onClick={() => navigate('/dashboard')} className="w-full">
                                         Dashboard
                                     </Button>
