@@ -1,6 +1,7 @@
 const Team = require('../models/Team');
 const Match = require('../models/Match');
 const Dispute = require('../models/Dispute');
+const User = require('../models/User');
 
 /**
  * Check if a team is eligible for matchmaking
