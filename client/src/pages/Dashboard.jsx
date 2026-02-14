@@ -1,0 +1,616 @@
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import api from '../api/axios';
+import Button from '../components/Button';
+import Input from '../components/Input';
+import LeagueTable from '../components/LeagueTable';
+import MatchHistory from '../components/MatchHistory';
+import NotificationBell from '../components/NotificationBell';
+import UnavailableToggle from '../components/UnavailableToggle';
+import DisputeModal from '../components/DisputeModal';
+import { Users, UserPlus, Calendar, Activity, Trophy, Shield, Search, Clock, MessageSquare, PlusCircle, Zap, Target, Info, CheckCircle2, ChevronRight, HelpCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
+import BackButton from '../components/BackButton';
+import { motion, AnimatePresence } from 'framer-motion';
+
+const MatchStepper = ({ status }) => {
+    const steps = [
+        { key: 'PROPOSED', label: 'Proposed' },
+        { key: 'ACCEPTED', label: 'Accepted' },
+        { key: 'SCHEDULED', label: 'Scheduled' },
+        { key: 'AWAITING_CONFIRMATION', label: 'Submitted' },
+        { key: 'COMPLETED', label: 'Finalized' }
+    ];
+
+    const getStatusIndex = (status) => {
+        const index = steps.findIndex(s => s.key === status);
+        if (status === 'DISPUTED') return 3; // Disputed is at submission stage
+        return index === -1 ? 0 : index;
+    };
+
+    const currentIndex = getStatusIndex(status);
+
+    return (
+        <div className="flex items-center justify-between mb-8 px-2 relative">
+            <div className="absolute top-1/2 left-0 w-full h-0.5 bg-white/10 -translate-y-1/2 z-0" />
+            <div
+                className="absolute top-1/2 left-0 h-0.5 bg-padel-green -translate-y-1/2 z-0 transition-all duration-500"
+                style={{ width: `${(currentIndex / (steps.length - 1)) * 100}%` }}
+            />
+            {steps.map((step, index) => (
+                <div key={step.key} className="relative z-10 flex flex-col items-center">
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-300 ${index <= currentIndex ? 'bg-padel-green border-padel-green shadow-[0_0_10px_rgba(156,231,18,0.5)]' : 'bg-text-primary border-white/20'
+                        }`}>
+                        {index < currentIndex ? <CheckCircle2 size={12} className="text-black" /> :
+                            index === currentIndex ? <div className="w-1.5 h-1.5 bg-black rounded-full animate-pulse" /> : null}
+                    </div>
+                    <span className={`text-[8px] font-black uppercase mt-2 tracking-tighter ${index <= currentIndex ? 'text-padel-green' : 'text-text-tertiary'
+                        }`}>
+                        {step.label}
+                    </span>
+                </div>
+            ))}
+        </div>
+    );
+};
+
+const Dashboard = () => {
+    const { user } = useAuth();
+    const navigate = useNavigate();
+    const [team, setTeam] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [createTeamMode, setCreateTeamMode] = useState(false);
+    const [teamName, setTeamName] = useState('');
+    const [inviteEmail, setInviteEmail] = useState('');
+    const [invitedToken, setInvitedToken] = useState('');
+    const [activeMatch, setActiveMatch] = useState(null);
+    const [submitMode, setSubmitMode] = useState(false);
+    const [result, setResult] = useState('WIN');
+    const [score, setScore] = useState('');
+    const [showDispute, setShowDispute] = useState(false);
+    const [matchMode, setMatchMode] = useState('COMPETITIVE');
+
+    useEffect(() => {
+        fetchData();
+    }, []);
+
+    const fetchData = async () => {
+        try {
+            const [teamRes, matchRes] = await Promise.all([
+                api.get('/teams/me'),
+                api.get('/matches/active')
+            ]);
+            setTeam(teamRes.data);
+            setActiveMatch(matchRes.data);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleCreateTeam = async (e) => {
+        e.preventDefault();
+        try {
+            const { data } = await api.post('/teams', { name: teamName });
+            setTeam(data);
+            setCreateTeamMode(false);
+            toast.success('Team created successfully!');
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to create team');
+        }
+    };
+
+    const handleInvite = async (e) => {
+        e.preventDefault();
+        try {
+            const { data } = await api.post(`/teams/${team._id}/invite`, { email: inviteEmail });
+            setInvitedToken(data.invite_token);
+            toast.success('Invite sent!');
+            fetchData();
+        } catch (err) {
+            toast.error('Failed to invite partner');
+        }
+    };
+
+    const handleFindMatch = async () => {
+        try {
+            await api.post(`/matches/find/${team._id}?mode=${matchMode}`);
+            toast.success(`${matchMode.toLowerCase()} match found! Check your notifications.`);
+            fetchData();
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Error finding match');
+        }
+    };
+
+    const handleToggleSoloPool = async () => {
+        try {
+            const { data } = await api.post('/teams/toggle-solo-pool');
+            toast.success(data.message);
+            fetchData();
+        } catch (err) {
+            toast.error('Failed to toggle solo pool');
+        }
+    };
+
+    const handleSubmitResult = async (e) => {
+        e.preventDefault();
+        try {
+            await api.post('/matches/submit', {
+                matchId: activeMatch._id,
+                result,
+                score
+            });
+            toast.success('Result submitted. Awaiting confirmation.');
+            setSubmitMode(false);
+            fetchData();
+        } catch (err) {
+            toast.error('Failed to submit result');
+        }
+    };
+
+    const handleConfirmMatch = async () => {
+        try {
+            await api.post(`/matches/${activeMatch._id}/confirm`);
+            toast.success('Match confirmed! Points updated.');
+            fetchData();
+        } catch (err) {
+            toast.error('Failed to confirm match');
+        }
+    };
+
+    const handleAcceptMatch = async () => {
+        try {
+            await api.post(`/matches/${activeMatch._id}/accept`);
+            toast.success('Match accepted!');
+            fetchData();
+        } catch (err) {
+            toast.error('Failed to accept match');
+        }
+    };
+
+    const handleScheduleMatch = async () => {
+        try {
+            await api.post(`/matches/${activeMatch._id}/schedule`);
+            toast.success('Match scheduled!');
+            fetchData();
+        } catch (err) {
+            toast.error('Failed to schedule match');
+        }
+    };
+
+    if (loading) return (
+        <div className="min-h-screen bg-light-bg flex items-center justify-center">
+            <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+                className="w-12 h-12 border-4 border-padel-green border-t-transparent rounded-full"
+            />
+        </div>
+    );
+
+    return (
+        <div className="min-h-screen bg-gradient-to-br from-light-bg via-light-surface to-slate-50 font-sans">
+            <BackButton className="absolute top-6 left-6 z-20" />
+            <main className="max-w-7xl mx-auto px-4 md:px-6 pt-32 pb-12">
+                <AnimatePresence mode="wait">
+                    {!team ? (
+                        <motion.div
+                            initial={{ opacity: 0, y: 30 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="max-w-2xl mx-auto"
+                        >
+                            {!createTeamMode ? (
+                                <div className="bg-white rounded-[3rem] p-12 border border-light-border shadow-2xl text-center relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 w-64 h-64 bg-padel-green/5 blur-3xl rounded-full translate-x-1/2 -translate-y-1/2" />
+                                    <div className="w-24 h-24 bg-gradient-to-br from-padel-green to-lime-500 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-xl shadow-padel-green/20">
+                                        <Users className="w-12 h-12 text-white" />
+                                    </div>
+                                    <h2 className="text-4xl font-black italic tracking-tighter text-text-primary uppercase mb-4">Unassigned Agent</h2>
+                                    <p className="text-text-secondary font-medium mb-10 max-w-sm mx-auto leading-relaxed border-l-2 border-light-border pl-6 italic">
+                                        "You are currently operating solo. Establish a team identity to infiltrate the rankings."
+                                    </p>
+                                    <div className="flex flex-col sm:flex-row gap-4 justify-center mb-6">
+                                        <Button size="xl" onClick={() => setCreateTeamMode(true)} className="flex-1">
+                                            <PlusCircle className="w-5 h-5 mr-2" /> Initialize Team
+                                        </Button>
+                                        <Button size="xl" variant="outline" onClick={() => navigate('/accept-invite')} className="flex-1">
+                                            <UserPlus className="w-5 h-5 mr-2" /> Join Team
+                                        </Button>
+                                    </div>
+                                    <div className="pt-6 border-t border-light-border">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary mb-3">Operating Solo?</p>
+                                        <Button
+                                            size="md"
+                                            variant={user.solo_pool_status === 'LOOKING' ? 'secondary' : 'outline'}
+                                            onClick={handleToggleSoloPool}
+                                            className="w-full"
+                                        >
+                                            <Search className="w-4 h-4 mr-2" />
+                                            {user.solo_pool_status === 'LOOKING' ? 'Exit Solo Pool' : 'Enter Solo Pool'}
+                                        </Button>
+                                        {user.solo_pool_status === 'LOOKING' && (
+                                            <p className="mt-2 text-[10px] text-padel-blue font-bold animate-pulse">Searching for partner...</p>
+                                        )}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="bg-white rounded-[3rem] p-12 border border-light-border shadow-2xl">
+                                    <h2 className="text-3xl font-black italic tracking-tighter text-text-primary uppercase mb-8 text-center">Team Identity</h2>
+                                    <form onSubmit={handleCreateTeam} className="space-y-6">
+                                        <Input
+                                            label="Faction Name"
+                                            value={teamName}
+                                            onChange={(e) => setTeamName(e.target.value)}
+                                            required
+                                            placeholder="Alpha Squad"
+                                        />
+                                        <div className="flex gap-4 pt-4">
+                                            <Button variant="secondary" onClick={() => setCreateTeamMode(false)} className="flex-1" size="md">
+                                                Cancel
+                                            </Button>
+                                            <Button type="submit" className="flex-1" size="md">Create</Button>
+                                        </div>
+                                    </form>
+                                </div>
+                            )}
+                        </motion.div>
+                    ) : (
+                        <div className="space-y-8">
+                            {/* Stats Overview */}
+                            <motion.div
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="grid grid-cols-2 lg:grid-cols-4 gap-4"
+                            >
+                                <StatCard icon={<Trophy className="text-amber-500" />} label="Total Points" value={team.points || 0} />
+                                <StatCard icon={<Activity className="text-padel-green" />} label="Matches" value={team.matches_played || 0} />
+                                <StatCard icon={<Shield className="text-sky-500" />} label="Win Rate" value={team.matches_played ? `${Math.round((team.wins / team.matches_played) * 100)}%` : '0%'} />
+                                <StatCard icon={<Target className="text-rose-500" />} label="League Rank" value="#--" />
+                            </motion.div>
+
+                            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                                {/* Side Column: Team Status & Active Match */}
+                                <div className="lg:col-span-4 space-y-8 lg:sticky lg:top-32">
+                                    {/* Team Status Card */}
+                                    <div className="bg-white rounded-[2.5rem] border border-light-border shadow-xl overflow-hidden">
+                                        <div className="bg-light-surface p-8 border-b border-light-border">
+                                            <h3 className="text-xs font-black uppercase tracking-[0.3em] text-text-tertiary mb-1">Squad Profile</h3>
+                                            <h4 className="text-2xl font-black italic tracking-tighter text-text-primary uppercase">{team.name}</h4>
+                                        </div>
+                                        <div className="p-8 space-y-6">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`w-3 h-3 rounded-full ${activeMatch?.status === 'DISPUTED' ? 'bg-amber-500' :
+                                                        team.status === 'AVAILABLE' ? 'bg-padel-blue animate-pulse' :
+                                                            'bg-rose-500'
+                                                        }`} />
+                                                    <span className="text-[10px] font-bold text-text-secondary uppercase tracking-widest">
+                                                        {activeMatch?.status === 'DISPUTED' ? 'Active Dispute' :
+                                                            activeMatch?.status === 'AWAITING_CONFIRMATION' ? 'Awaiting Confirmation' :
+                                                                activeMatch ? activeMatch.status : team.status}
+                                                    </span>
+                                                </div>
+                                                <UnavailableToggle team={team} onUpdate={fetchData} />
+                                            </div>
+
+                                            {!team.player_2_id ? (
+                                                <div className="bg-amber-50 rounded-2xl p-5 border border-amber-100">
+                                                    <p className="text-xs font-black uppercase tracking-widest text-amber-900 mb-3 flex items-center gap-2">
+                                                        <Search size={14} /> Recruitment Open
+                                                    </p>
+                                                    <p className="text-xs text-amber-700 font-medium mb-4 italic">"Share the token or link with your partner to activate the squad."</p>
+                                                    <form onSubmit={handleInvite} className="space-y-3">
+                                                        <Input
+                                                            type="email"
+                                                            value={inviteEmail}
+                                                            onChange={(e) => setInviteEmail(e.target.value)}
+                                                            placeholder="operator@email.com"
+                                                            className="text-xs"
+                                                        />
+                                                        <Button type="submit" size="md" className="w-full">Send Invite</Button>
+                                                    </form>
+                                                    {invitedToken && (
+                                                        <div className="mt-4 p-4 bg-white border border-amber-200 rounded-xl space-y-3">
+                                                            <div>
+                                                                <p className="text-[10px] font-black uppercase text-amber-900 mb-1">Invite Token</p>
+                                                                <code className="text-xs font-mono break-all text-text-primary block bg-slate-50 p-2 rounded">{invitedToken}</code>
+                                                            </div>
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className="w-full"
+                                                                onClick={() => {
+                                                                    const link = `${window.location.origin}/accept-invite?token=${invitedToken}`;
+                                                                    navigator.clipboard.writeText(link);
+                                                                    toast.success('Invitation link copied!');
+                                                                }}
+                                                            >
+                                                                Copy Invite Link
+                                                            </Button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center gap-3 p-4 bg-light-surface rounded-2xl border border-light-border">
+                                                    <Users size={18} className="text-text-tertiary" />
+                                                    <div className="text-xs">
+                                                        <p className="font-black text-text-primary uppercase racking-tighter">Full Squad Established</p>
+                                                        <p className="text-text-tertiary font-medium">Captain & Partner Assigned</p>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Active Match Card */}
+                                    {activeMatch ? (
+                                        <div className="bg-text-primary rounded-[2.5rem] p-8 text-white shadow-2xl shadow-padel-green/10 relative overflow-hidden group">
+                                            <div className="absolute top-0 right-0 w-32 h-32 bg-padel-green/20 blur-3xl rounded-full" />
+                                            <div className="relative z-10">
+                                                <div className="flex items-center justify-between mb-8">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[10px] font-black uppercase tracking-[0.4em] text-padel-green animate-pulse">Contact Established</span>
+                                                        <span className="text-[10px] font-bold text-text-tertiary uppercase mt-1">Mode: {activeMatch.mode}</span>
+                                                    </div>
+                                                    <Clock size={16} className="text-text-tertiary" />
+                                                </div>
+
+                                                <MatchStepper status={activeMatch.status} />
+
+                                                <div className="flex items-center justify-between gap-4 text-center mb-6">
+                                                    <div className="flex-1">
+                                                        <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary mb-2">Home</p>
+                                                        <h5 className="text-sm font-black italic uppercase truncate">{activeMatch.team_a_id?.name || '---'}</h5>
+                                                    </div>
+                                                    <div className="text-padel-green font-black italic text-2xl px-4 italic tracking-tighter">VS</div>
+                                                    <div className="flex-1">
+                                                        <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary mb-2">Away</p>
+                                                        <h5 className="text-sm font-black italic uppercase truncate">{activeMatch.team_b_id?.name || '---'}</h5>
+                                                    </div>
+                                                </div>
+
+                                                {/* WhatsApp Contact */}
+                                                {(activeMatch.status === 'PROPOSED' || activeMatch.status === 'ACCEPTED' || activeMatch.status === 'SCHEDULED') && (
+                                                    <div className="mb-8 p-4 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-10 h-10 bg-padel-green/10 rounded-xl flex items-center justify-center">
+                                                                <MessageSquare size={18} className="text-padel-green" />
+                                                            </div>
+                                                            <div className="text-left">
+                                                                <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Opponent Captain</p>
+                                                                <p className="text-xs font-bold text-white uppercase italic">
+                                                                    {activeMatch.team_a_id?._id === team._id
+                                                                        ? activeMatch.team_b_id?.captain_id?.full_name
+                                                                        : activeMatch.team_a_id?.captain_id?.full_name}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <a
+                                                            href={`https://wa.me/${(activeMatch.team_a_id?._id === team._id
+                                                                ? activeMatch.team_b_id?.captain_id?.phone_number
+                                                                : activeMatch.team_a_id?.captain_id?.phone_number)?.replace(/\D/g, '')}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="p-3 bg-padel-green text-black rounded-xl hover:scale-105 transition-transform"
+                                                        >
+                                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                                                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                                                            </svg>
+                                                        </a>
+                                                    </div>
+                                                )}
+
+                                                {(activeMatch.status === 'ACCEPTED' || activeMatch.status === 'SCHEDULED') && (
+                                                    <div className="mb-8 p-4 bg-padel-blue/10 border border-padel-blue/20 rounded-2xl flex items-center gap-3">
+                                                        <Calendar size={18} className="text-padel-blue" />
+                                                        <p className="text-[10px] font-bold text-padel-blue uppercase leading-tight">
+                                                            Don't forget to book your court directly with the club!
+                                                        </p>
+                                                    </div>
+                                                )}
+
+                                                {activeMatch.status === 'PROPOSED' && activeMatch.team_b_id?._id === team._id && (
+                                                    <Button onClick={handleAcceptMatch} className="w-full bg-padel-blue text-white py-4 font-black mb-2">
+                                                        Accept Proposal
+                                                    </Button>
+                                                )}
+
+                                                {activeMatch.status === 'ACCEPTED' && (
+                                                    <Button onClick={handleScheduleMatch} className="w-full bg-padel-green text-black py-4 font-black mb-2">
+                                                        Mark as Scheduled
+                                                    </Button>
+                                                )}
+
+                                                {(activeMatch.status === 'PROPOSED' || activeMatch.status === 'ACCEPTED' || activeMatch.status === 'SCHEDULED') && !activeMatch.result && !submitMode && (
+                                                    <Button
+                                                        onClick={() => setSubmitMode(true)}
+                                                        className="w-full bg-padel-green text-black hover:bg-white transition-all py-4 font-black"
+                                                        disabled={activeMatch.status === 'PROPOSED'}
+                                                    >
+                                                        {activeMatch.status === 'PROPOSED' ? 'Wait for Acceptance' : 'Submit Intel'}
+                                                    </Button>
+                                                )}
+
+                                                {activeMatch.status === 'AWAITING_CONFIRMATION' && activeMatch.submitted_by !== user._id && (
+                                                    <div className="flex gap-2 mb-2">
+                                                        <Button onClick={handleConfirmMatch} className="flex-1 bg-padel-green text-black py-4 font-black">
+                                                            Confirm
+                                                        </Button>
+                                                        <Button onClick={() => setShowDisputeModal(true)} variant="danger" className="flex-1 py-4 font-black">
+                                                            Dispute
+                                                        </Button>
+                                                    </div>
+                                                )}
+
+                                                {activeMatch.status === 'AWAITING_CONFIRMATION' && activeMatch.submitted_by === user._id && (
+                                                    <div className="bg-white/10 border border-white/20 p-4 rounded-2xl mb-2 text-center">
+                                                        <p className="text-xs font-bold text-text-tertiary uppercase">Result Submitted</p>
+                                                        <p className="text-[10px] text-text-tertiary mt-1 italic italic">Waiting for opponent confirmation (48h)</p>
+                                                    </div>
+                                                )}
+
+                                                {submitMode && (
+                                                    <form onSubmit={handleSubmitResult} className="space-y-4 pt-4 border-t border-white/10">
+                                                        <div>
+                                                            <label className="text-[10px] font-black uppercase tracking-widest text-text-tertiary block mb-2">Outcome</label>
+                                                            <select
+                                                                value={result}
+                                                                onChange={(e) => setResult(e.target.value)}
+                                                                className="w-full bg-light-surface/10 border border-white/10 rounded-xl px-4 py-2 text-sm font-bold focus:outline-none focus:border-padel-green"
+                                                            >
+                                                                <option value="WIN" className="bg-text-primary">Victory</option>
+                                                                <option value="LOSS" className="bg-text-primary">Defeat</option>
+                                                            </select>
+                                                        </div>
+                                                        <Input
+                                                            label="Scorecard Details"
+                                                            value={score}
+                                                            onChange={(e) => setScore(e.target.value)}
+                                                            placeholder="6-4, 7-5"
+                                                            className="bg-white/5 border-white/10 text-white placeholder:text-text-tertiary text-sm"
+                                                        />
+                                                        <div className="flex gap-4 pt-2">
+                                                            <Button variant="outline" size="sm" onClick={() => setSubmitMode(false)} className="flex-1 border-white/20 text-white hover:bg-white/10">
+                                                                Cancel
+                                                            </Button>
+                                                            <Button size="sm" type="submit" className="flex-1 bg-padel-green text-black">
+                                                                Transmit
+                                                            </Button>
+                                                        </div>
+                                                    </form>
+                                                )}
+
+                                            </div>
+                                        </div>
+                                    ) : team.player_2_id && team.status === 'AVAILABLE' && (
+                                        <div className="bg-white rounded-[2.5rem] p-8 border border-light-border shadow-xl text-center flex flex-col items-center group overflow-hidden relative">
+                                            <div className="absolute inset-0 bg-padel-green/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                            <div className="w-16 h-16 bg-light-surface rounded-[1.5rem] flex items-center justify-center mb-6 group-hover:scale-110 group-hover:rotate-3 transition-all">
+                                                <Zap className="text-padel-green w-8 h-8" />
+                                            </div>
+                                            <h5 className="text-xl font-black italic uppercase tracking-tighter text-text-primary mb-2">Ready for Duty</h5>
+                                            <p className="text-xs text-text-tertiary font-medium mb-6">Deploy into matchmaking to find your next objective.</p>
+
+                                            <div className="w-full flex p-1 bg-light-surface rounded-xl mb-6">
+                                                <button
+                                                    onClick={() => setMatchMode('COMPETITIVE')}
+                                                    className={`flex-1 py-2 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all ${matchMode === 'COMPETITIVE' ? 'bg-white text-padel-blue shadow-sm shadow-padel-blue/10' : 'text-text-tertiary'}`}
+                                                >
+                                                    Competitive
+                                                </button>
+                                                <button
+                                                    onClick={() => setMatchMode('FRIENDLY')}
+                                                    className={`flex-1 py-2 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all ${matchMode === 'FRIENDLY' ? 'bg-white text-padel-green shadow-sm shadow-padel-green/10' : 'text-text-tertiary'}`}
+                                                >
+                                                    Friendly
+                                                </button>
+                                            </div>
+                                            <Button onClick={handleFindMatch} size="lg" className="w-full py-5 rounded-2xl shadow-xl shadow-padel-green/20">
+                                                <Search className="w-5 h-5 mr-2" /> Find Match
+                                            </Button>
+
+                                            <div className="mt-6 p-4 bg-light-surface/50 border border-light-border rounded-2xl text-left">
+                                                <div className="flex gap-3">
+                                                    <Info size={16} className="text-padel-blue flex-shrink-0 mt-0.5" />
+                                                    <p className="text-[10px] text-text-secondary leading-relaxed font-medium">
+                                                        <strong>Tactical Brief:</strong> Our AI will analyze the rankings and pair you with an opponent of similar caliber.
+                                                        {matchMode === 'COMPETITIVE'
+                                                            ? ' In Competitive mode, victory earns 3 points, loss 1, and a 7-day cooldown applies.'
+                                                            : ' Friendly mode has no point impact and ignores active cooldowns.'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Knowledge Base / Help Card */}
+                                    <div className="bg-white rounded-[2.5rem] border border-light-border shadow-xl p-8">
+                                        <div className="flex items-center gap-3 mb-6">
+                                            <div className="w-10 h-10 bg-padel-blue/10 rounded-xl flex items-center justify-center">
+                                                <HelpCircle className="text-padel-blue" size={20} />
+                                            </div>
+                                            <h3 className="text-sm font-black uppercase tracking-widest text-text-primary italic">Commander's Briefing</h3>
+                                        </div>
+                                        <div className="space-y-4">
+                                            {[
+                                                { title: 'Victory & Rankings', detail: 'Wins boost your position. Aim for the #1 spot!', icon: <Trophy size={14} className="text-amber-500" /> },
+                                                { title: 'The 48-Hour Rule', detail: 'Opponents have 48h to confirm results before auto-finalization.', icon: <Clock size={14} className="text-padel-blue" /> },
+                                                { title: 'Friendly Operations', detail: 'Use Solo Pool to find partners for low-stakes training.', icon: <Zap size={14} className="text-padel-green" /> }
+                                            ].map((tip, i) => (
+                                                <div key={i} className="flex gap-4 group cursor-default">
+                                                    <div className="mt-1 transition-transform group-hover:scale-125">{tip.icon}</div>
+                                                    <div>
+                                                        <h4 className="text-[10px] font-black uppercase text-text-primary tracking-tighter mb-0.5">{tip.title}</h4>
+                                                        <p className="text-[10px] text-text-tertiary leading-tight font-medium">{tip.detail}</p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Main Column: Rankings & History */}
+                                <div className="lg:col-span-8 space-y-8">
+                                    <div className="bg-white rounded-[2.5rem] border border-light-border shadow-xl overflow-hidden">
+                                        <div className="p-8 border-b border-light-border flex items-center justify-between bg-light-surface/30">
+                                            <div>
+                                                <h3 className="text-xs font-black uppercase tracking-[0.4em] text-text-tertiary mb-1">Global Leaderboard</h3>
+                                                <h4 className="text-2xl font-black italic tracking-tighter text-text-primary uppercase">Sector Rankings</h4>
+                                            </div>
+                                            <div className="p-3 bg-white rounded-2xl border border-light-border shadow-sm">
+                                                <Trophy className="text-amber-500" />
+                                            </div>
+                                        </div>
+                                        <div className="p-2">
+                                            <LeagueTable clubId={team.club_id} />
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white rounded-[2.5rem] border border-light-border shadow-xl overflow-hidden">
+                                        <div className="p-8 border-b border-light-border flex items-center justify-between bg-light-surface/30">
+                                            <div>
+                                                <h3 className="text-xs font-black uppercase tracking-[0.4em] text-text-tertiary mb-1">Historical Logs</h3>
+                                                <h4 className="text-2xl font-black italic tracking-tighter text-text-primary uppercase">Mission Archive</h4>
+                                            </div>
+                                            <div className="p-3 bg-white rounded-2xl border border-light-border shadow-sm">
+                                                <Clock className="text-text-secondary" />
+                                            </div>
+                                        </div>
+                                        <div className="p-2">
+                                            <MatchHistory teamId={team._id} />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </AnimatePresence>
+            </main>
+
+            {/* Dispute Modal */}
+            {showDispute && activeMatch && (
+                <DisputeModal
+                    match={activeMatch}
+                    onClose={() => setShowDispute(false)}
+                    onSuccess={fetchData}
+                />
+            )}
+        </div>
+    );
+};
+
+const StatCard = ({ icon, label, value }) => (
+    <div className="bg-white p-6 rounded-[2rem] border border-light-border shadow-lg flex items-center gap-5 group hover:border-padel-green transition-all hover:-translate-y-1">
+        <div className="w-14 h-14 bg-light-surface rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 group-hover:rotate-3">
+            {icon}
+        </div>
+        <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-text-tertiary mb-1">{label}</p>
+            <p className="text-2xl font-black italic tracking-tighter text-text-primary leading-none uppercase">{value}</p>
+        </div>
+    </div>
+);
+
+export default Dashboard;
