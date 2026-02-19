@@ -47,8 +47,28 @@ const isTeamEligible = (team, teamsWithDisputes = [], options = { isFriendly: fa
     return { eligible: true, reason: 'Eligible' };
 };
 
+// Spec 1.4: ordered level bands — Beginner(0) ... Very Competitive(3)
+const LEVEL_ORDER = ['BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'VERY_COMPETITIVE'];
+
 /**
- * Find best opponent for a team based on PDF specification
+ * Returns allowed level bands for a given team's experience_level.
+ * Primary: same level. Secondary: ±1 band.
+ * Hard rule: BEGINNER cannot match VERY_COMPETITIVE (and vice versa).
+ */
+const getAllowedLevelBands = (level) => {
+    const idx = LEVEL_ORDER.indexOf(level);
+    if (idx === -1) return LEVEL_ORDER; // unknown level → no restriction
+    const adjacent = [];
+    if (idx > 0) adjacent.push(LEVEL_ORDER[idx - 1]);
+    if (idx < LEVEL_ORDER.length - 1) adjacent.push(LEVEL_ORDER[idx + 1]);
+    // Remove the forbidden pairing: BEGINNER <-> VERY_COMPETITIVE
+    const forbidden = level === 'BEGINNER' ? 'VERY_COMPETITIVE' : level === 'VERY_COMPETITIVE' ? 'BEGINNER' : null;
+    const filtered = adjacent.filter(l => l !== forbidden);
+    return { same: [level], expanded: filtered };
+};
+
+/**
+ * Find best opponent for a team (spec 1.3 + 1.4)
  */
 const findBestOpponent = async (team, options = { isFriendly: false }) => {
     try {
@@ -75,50 +95,70 @@ const findBestOpponent = async (team, options = { isFriendly: false }) => {
             m.team_a_id.toString() === team._id.toString() ? m.team_b_id.toString() : m.team_a_id.toString()
         );
 
-        // 3. Find and filter potential opponents
-        const filter = {
+        // 3. Build base eligibility filter
+        const baseFilter = {
             _id: { $ne: team._id },
             club_id: team.club_id,
             status: options.isFriendly ? { $in: ['AVAILABLE', 'COOLDOWN'] } : 'AVAILABLE',
             player_2_id: { $exists: true, $ne: null }
         };
-
         if (disputedTeamIds.length > 0) {
-            filter._id = { ...filter._id, $nin: disputedTeamIds };
+            baseFilter._id = { ...baseFilter._id, $nin: disputedTeamIds };
         }
 
-        const potentialOpponents = await Team.find(filter);
+        /**
+         * Filter + rank a candidate list by closest points, avoiding recent repeats.
+         */
+        const rankCandidates = (candidates, allCandidates) => {
+            return candidates
+                .filter(opponent => {
+                    if (!isTeamEligible(opponent, disputedTeamIds, options).eligible) return false;
+                    // Skip recent opponents only if fresher alternatives exist
+                    if (recentOpponentIds.includes(opponent._id.toString())) {
+                        const hasOtherOptions = allCandidates.some(t =>
+                            t._id.toString() !== opponent._id.toString() &&
+                            !recentOpponentIds.includes(t._id.toString()) &&
+                            isTeamEligible(t, disputedTeamIds, options).eligible
+                        );
+                        if (hasOtherOptions) return false;
+                    }
+                    return true;
+                })
+                .sort((a, b) => Math.abs((a.points || 0) - (team.points || 0)) - Math.abs((b.points || 0) - (team.points || 0)));
+        };
 
-        const eligibleOpponents = potentialOpponents.filter(opponent => {
-            // Check specific eligibility rules
-            const eligibilityCheck = isTeamEligible(opponent, disputedTeamIds, options);
-            if (!eligibilityCheck.eligible) return false;
+        // 4. Spec 1.4 — Level-aware search
+        const teamLevel = team.experience_level;
 
-            // Avoid repeat opponents if alternatives exist
-            if (recentOpponentIds.includes(opponent._id.toString())) {
-                const hasOtherOptions = potentialOpponents.some(t =>
-                    t._id.toString() !== opponent._id.toString() &&
-                    !recentOpponentIds.includes(t._id.toString()) &&
-                    isTeamEligible(t, disputedTeamIds, options).eligible
-                );
-                if (hasOtherOptions) return false;
+        if (teamLevel && LEVEL_ORDER.includes(teamLevel)) {
+            const bands = getAllowedLevelBands(teamLevel);
+
+            // 4a. Primary: same level
+            const sameLevel = await Team.find({ ...baseFilter, experience_level: { $in: bands.same } });
+            const sameLevelRanked = rankCandidates(sameLevel, sameLevel);
+            if (sameLevelRanked.length > 0) {
+                return { success: true, opponent: sameLevelRanked[0] };
             }
 
-            return true;
-        });
+            // 4b. Secondary: ±1 band (Beginner↔Very Competitive blocked by getAllowedLevelBands)
+            if (bands.expanded.length > 0) {
+                const expandedLevel = await Team.find({ ...baseFilter, experience_level: { $in: bands.expanded } });
+                const expandedRanked = rankCandidates(expandedLevel, expandedLevel);
+                if (expandedRanked.length > 0) {
+                    return { success: true, opponent: expandedRanked[0] };
+                }
+            }
 
-        if (eligibleOpponents.length === 0) {
-            return { success: false, error: 'No eligible opponents found' };
+            return { success: false, error: 'No eligible opponents found at your experience level or adjacent bands' };
         }
 
-        // 4. Rank by closest league points
-        const rankedOpponents = eligibleOpponents.sort((a, b) => {
-            const pointsDiffA = Math.abs((a.points || 0) - (team.points || 0));
-            const pointsDiffB = Math.abs((b.points || 0) - (team.points || 0));
-            return pointsDiffA - pointsDiffB;
-        });
-
-        return { success: true, opponent: rankedOpponents[0] };
+        // Fallback: no level set — search all eligible (legacy / solo-pool teams)
+        const allCandidates = await Team.find(baseFilter);
+        const ranked = rankCandidates(allCandidates, allCandidates);
+        if (ranked.length === 0) {
+            return { success: false, error: 'No eligible opponents found' };
+        }
+        return { success: true, opponent: ranked[0] };
 
     } catch (error) {
         console.error('Error finding opponent:', error);
@@ -128,8 +168,9 @@ const findBestOpponent = async (team, options = { isFriendly: false }) => {
 
 /**
  * Create a match with atomic locking to prevent double-matching
+ * Spec 2.5: Match creation + notifications occur in same transaction
  */
-const createMatchWithLocking = async (teamA, teamB, mode = 'COMPETITIVE') => {
+const createMatchWithLocking = async (teamA, teamB, mode = 'COMPETITIVE', notificationType = 'MATCH_CREATED') => {
     const session = await Team.startSession();
     session.startTransaction();
 
@@ -173,17 +214,22 @@ const createMatchWithLocking = async (teamA, teamB, mode = 'COMPETITIVE') => {
         // Calculate current week cycle
         const weekCycle = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
 
-        // Create the match
+        // Create the match (deadline = 7 days from now, per spec 1.3 step 8)
         const match = new Match({
             club_id: teamA.club_id,
             team_a_id: teamA._id,
             team_b_id: teamB._id,
             status: 'PROPOSED',
             mode: mode,
-            week_cycle: weekCycle
+            week_cycle: weekCycle,
+            match_deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
         });
 
         await match.save({ session });
+
+        // Spec 2.5: Match creation + notifications must occur in same database transaction
+        const { notifyMatchCreated } = require('./notificationService');
+        await notifyMatchCreated(match, teamA, teamB, notificationType, session);
 
         // Commit transaction
         await session.commitTransaction();
@@ -248,6 +294,7 @@ const finalizeMatchResult = async (match) => {
             loserUpdate.status = 'COOLDOWN';
             loserUpdate.cooldown_expires_at = cooldownExpiry;
         } else {
+            // Friendly mode (Spec 3.2): No cooldown
             loserUpdate.status = 'AVAILABLE';
         }
 
@@ -274,64 +321,119 @@ const finalizeMatchResult = async (match) => {
 };
 
 /**
- * Pair solo players into teams within a club
+ * Pair solo players into teams within a club (Spec 3.1)
+ * Uses level, availability, and mixed preference matching
  */
 const pairSoloPlayers = async (clubId) => {
     try {
+        console.log(`[MATCHMAKING] Running solo pairing for club ${clubId}...`);
+
         // 1. Find all players in the solo pool for this club
         const soloPlayers = await User.find({
             club_id: clubId,
             solo_pool_status: 'LOOKING'
-        }).sort({ createdAt: 1 }); // Pair oldest first
+        }).sort({ createdAt: 1 });
 
         if (soloPlayers.length < 2) return { success: false, paired: 0 };
 
         let pairsCreated = 0;
+        const pairedUserIds = new Set();
 
-        // 2. Iterate and pair in chunks of 2
-        for (let i = 0; i < soloPlayers.length - 1; i += 2) {
+        // 2. Sophisticated pairing loop
+        for (let i = 0; i < soloPlayers.length; i++) {
             const player1 = soloPlayers[i];
-            const player2 = soloPlayers[i + 1];
+            if (pairedUserIds.has(player1._id.toString())) continue;
 
-            // Create a temporary Friendly Team
-            const teamName = `Friendly Team: ${player1.full_name.split(' ')[0]} & ${player2.full_name.split(' ')[0]}`;
+            let bestPartner = null;
+            let bestScore = -1;
 
-            const team = await Team.create({
-                club_id: clubId,
-                name: teamName,
-                captain_id: player1._id,
-                player_2_id: player2._id,
-                status: 'AVAILABLE',
-                solo_pool: true
-            });
+            for (let j = i + 1; j < soloPlayers.length; j++) {
+                const player2 = soloPlayers[j];
+                if (pairedUserIds.has(player2._id.toString())) continue;
 
-            // Update player statuses
-            player1.solo_pool_status = 'PAIRED';
-            player2.solo_pool_status = 'PAIRED';
-            await player1.save();
-            await player2.save();
+                // --- Match Criteria 1: Level (Same > +/- 1) ---
+                const level1 = player1.experience_level || 'BEGINNER';
+                const level2 = player2.experience_level || 'BEGINNER';
+                const pos1 = LEVEL_ORDER.indexOf(level1);
+                const pos2 = LEVEL_ORDER.indexOf(level2);
+                const levelDiff = Math.abs(pos1 - pos2);
 
-            pairsCreated++;
+                if (levelDiff > 1) continue; // Skip if levels are too far apart (e.g. Beginner vs Advanced)
 
-            // Notify both players
-            const { createNotification } = require('./notificationService');
-            await createNotification({
-                userId: player1._id,
-                type: 'TEAM_INVITE',
-                title: 'Solo Partner Found!',
-                message: `You have been paired with ${player2.full_name} for friendly games.`,
-                teamId: team._id,
-                actionUrl: '/dashboard'
-            });
+                // --- Match Criteria 2: Availability (Overlapping strings) ---
+                const avail1 = player1.availability || [];
+                const avail2 = player2.availability || [];
+                const commonAvail = avail1.filter(v => avail2.includes(v));
+                if (commonAvail.length === 0 && avail1.length > 0 && avail2.length > 0) continue;
 
-            await createNotification({
-                userId: player2._id,
-                type: 'TEAM_INVITE',
-                title: 'Solo Partner Found!',
-                message: `You have been paired with ${player1.full_name} for friendly games.`,
-                teamId: team._id,
-                actionUrl: '/dashboard'
-            });
+                // --- Match Criteria 3: Mixed Preference ---
+                // If either is strict 'NO' to mixed, and they are different genders, skip
+                if (player1.gender !== player2.gender) {
+                    if (player1.play_mixed === 'NO' || player2.play_mixed === 'NO') continue;
+                }
+
+                // Scoring
+                let score = (3 - levelDiff) * 10; // Level is primary (30 pts for same, 20 pts for +/- 1)
+                score += commonAvail.length * 5; // Availability is secondary
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestPartner = player2;
+                }
+            }
+
+            if (bestPartner) {
+                // We found a match! Create the team
+                const teamName = `Friendly: ${player1.full_name.split(' ')[0]} & ${bestPartner.full_name.split(' ')[0]}`;
+
+                // Derived Team level = max of both (Spec 3.1)
+                const level1 = player1.experience_level || 'BEGINNER';
+                const level2 = bestPartner.experience_level || 'BEGINNER';
+                const teamLevel = LEVEL_ORDER.indexOf(level1) > LEVEL_ORDER.indexOf(level2) ? level1 : level2;
+
+                const team = await Team.create({
+                    club_id: clubId,
+                    name: teamName,
+                    captain_id: player1._id,
+                    player_2_id: bestPartner._id,
+                    status: 'AVAILABLE',
+                    solo_pool: true,
+                    experience_level: teamLevel,
+                    mixed_gender_preference: (player1.play_mixed === 'YES' && bestPartner.play_mixed === 'YES') ? 'YES' :
+                        (player1.play_mixed === 'NO' || bestPartner.play_mixed === 'NO') ? 'NO' : 'DOES_NOT_MATTER'
+                });
+
+                // Update player statuses
+                player1.solo_pool_status = 'PAIRED';
+                bestPartner.solo_pool_status = 'PAIRED';
+                await player1.save();
+                await bestPartner.save();
+
+                pairedUserIds.add(player1._id.toString());
+                pairedUserIds.add(bestPartner._id.toString());
+                pairsCreated++;
+
+                // Notify both
+                const { createNotification } = require('./notificationService');
+                await Promise.all([
+                    createNotification({
+                        userId: player1._id,
+                        type: 'PARTNER_JOINED',
+                        title: 'Solo Partner Found!',
+                        message: `You have been paired with ${bestPartner.full_name} for friendly games.`,
+                        teamId: team._id,
+                        actionUrl: '/dashboard'
+                    }),
+                    createNotification({
+                        userId: bestPartner._id,
+                        type: 'PARTNER_JOINED',
+                        title: 'Solo Partner Found!',
+                        message: `You have been paired with ${player1.full_name} for friendly games.`,
+                        teamId: team._id,
+                        actionUrl: '/dashboard'
+                    })
+                ]);
+            }
         }
 
         return { success: true, paired: pairsCreated };

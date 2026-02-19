@@ -12,6 +12,7 @@ const NotificationSchema = new mongoose.Schema({
         type: String,
         enum: [
             'MATCH_CREATED',
+            'MATCH_ASSIGNED',
             'RESULT_SUBMITTED',
             'RESULT_CONFIRMED',
             'RESULT_AUTO_CONFIRMED',
@@ -34,7 +35,7 @@ const NotificationSchema = new mongoose.Schema({
     match_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Match' },
     team_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Team' },
 
-    read: { type: Boolean, default: false },
+    is_read: { type: Boolean, default: false },
 
     // Optional action link
     action_url: { type: String },
@@ -42,6 +43,6 @@ const NotificationSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Index for efficient queries
-NotificationSchema.index({ user_id: 1, read: 1, createdAt: -1 });
+NotificationSchema.index({ user_id: 1, is_read: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Notification', NotificationSchema);

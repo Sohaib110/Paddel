@@ -4,7 +4,7 @@ const User = require('../models/User');
 /**
  * Create a notification for a user
  */
-const createNotification = async ({ userId, type, title, message, matchId = null, teamId = null, actionUrl = null }) => {
+const createNotification = async ({ userId, type, title, message, matchId = null, teamId = null, actionUrl = null, session = null }) => {
     try {
         const notification = new Notification({
             user_id: userId,
@@ -16,7 +16,7 @@ const createNotification = async ({ userId, type, title, message, matchId = null
             action_url: actionUrl
         });
 
-        await notification.save();
+        await notification.save({ session });
         return { success: true, notification };
     } catch (error) {
         console.error('Error creating notification:', error);
@@ -29,7 +29,7 @@ const { sendMatchFoundEmail } = require('./emailService');
 /**
  * Create notifications for both team captains about a new match
  */
-const notifyMatchCreated = async (match, teamA, teamB) => {
+const notifyMatchCreated = async (match, teamA, teamB, notificationType = 'MATCH_CREATED', session = null) => {
     try {
         // Fetch captains to get their emails
         const [captainA, captainB] = await Promise.all([
@@ -37,25 +37,27 @@ const notifyMatchCreated = async (match, teamA, teamB) => {
             User.findById(teamB.captain_id)
         ]);
 
-        // 1. In-account notifications
+        // 1. In-account notifications (Atomic DB transaction if session provided)
         await Promise.all([
             createNotification({
                 userId: teamA.captain_id,
-                type: 'MATCH_CREATED',
+                type: notificationType,
                 title: 'Match Found!',
                 message: `Your team "${teamA.name}" has been matched with "${teamB.name}". Connect via WhatsApp to schedule your game.`,
                 matchId: match._id,
                 teamId: teamA._id,
-                actionUrl: '/dashboard'
+                actionUrl: '/dashboard',
+                session
             }),
             createNotification({
                 userId: teamB.captain_id,
-                type: 'MATCH_CREATED',
+                type: notificationType,
                 title: 'Match Found!',
                 message: `Your team "${teamB.name}" has been matched with "${teamA.name}". Connect via WhatsApp to schedule your game.`,
                 matchId: match._id,
                 teamId: teamB._id,
-                actionUrl: '/dashboard'
+                actionUrl: '/dashboard',
+                session
             })
         ]);
 

@@ -63,8 +63,7 @@ const findMatch = async (req, res) => {
             return res.status(409).json({ message: matchResult.error || 'Matchmaking conflict. Please try again.' });
         }
 
-        // 5. Send notifications
-        await notifyMatchCreated(matchResult.match, matchResult.teamA, matchResult.teamB);
+        // Match creation success (notifications already sent atomically inside transaction)
 
         // 6. Return success
         res.status(201).json({

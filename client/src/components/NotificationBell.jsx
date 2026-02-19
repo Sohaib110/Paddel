@@ -97,7 +97,7 @@ const NotificationBell = () => {
                     <div
                       key={notif._id}
                       onClick={() => handleNotificationClick(notif)}
-                      className={`p-4 border-b border-light-border cursor-pointer transition-colors hover:bg-slate-50 ${!notif.read ? 'bg-blue-50' : 'bg-white'}`}
+                      className={`p-4 border-b border-light-border cursor-pointer transition-colors hover:bg-slate-50 ${!notif.is_read ? 'bg-blue-50' : 'bg-white'}`}
                     >
                       <div className="flex justify-between items-start gap-2">
                         <div className="flex-1">
@@ -112,7 +112,7 @@ const NotificationBell = () => {
                             })}
                           </p>
                         </div>
-                        {!notif.read && <div className="w-2 h-2 bg-padel-green rounded-full flex-shrink-0 mt-1" />}
+                        {!notif.is_read && <div className="w-2 h-2 bg-padel-green rounded-full flex-shrink-0 mt-1" />}
                       </div>
                     </div>
                   ))

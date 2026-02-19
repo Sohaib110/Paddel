@@ -6,13 +6,18 @@ const crypto = require('crypto');
 // @route   POST /api/teams
 // @access  Private (Captain)
 const createTeam = async (req, res) => {
-    const { name } = req.body;
+    const { name, experience_level } = req.body;
     const club_id = req.user.club_id;
 
-    // Check if user already has a team? 
-    // PDF doesn't strictly forbid multiple teams, but implies 1 active?
-    // "One captain per team".
-    // Let's assume user can only be captain of one team for simplicity.
+    // Validate experience_level
+    const validLevels = ['BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'VERY_COMPETITIVE'];
+    if (!experience_level || !validLevels.includes(experience_level)) {
+        return res.status(400).json({
+            message: `experience_level is required and must be one of: ${validLevels.join(', ')}`
+        });
+    }
+
+    // A user can only be captain of one active team
     const existingTeam = await Team.findOne({ captain_id: req.user._id, status: { $ne: 'INACTIVE' } });
     if (existingTeam) {
         return res.status(400).json({ message: 'You already have an active team.' });
@@ -22,6 +27,7 @@ const createTeam = async (req, res) => {
         const team = await Team.create({
             club_id,
             name,
+            experience_level,
             captain_id: req.user._id,
             status: 'PENDING_PARTNER'
         });
@@ -85,8 +91,7 @@ const acceptInvite = async (req, res) => {
         return res.status(400).json({ message: 'Invalid token' });
     }
 
-    // Verify email matches? Optional if user logged in. 
-    // If user email matches invite_email.
+    // Verify email matches invite_email if set
     if (team.invite_email && req.user.email !== team.invite_email) {
         return res.status(400).json({ message: 'This invite is not for you.' });
     }
@@ -95,6 +100,22 @@ const acceptInvite = async (req, res) => {
     team.invite_token = undefined;
     team.invite_email = undefined;
     team.status = 'AVAILABLE';
+
+    // Derive mixed_gender_preference from both players' play_mixed setting
+    // Rule: both YES → YES, either NO → NO, otherwise → DOES_NOT_MATTER
+    const captain = await User.findById(team.captain_id).select('play_mixed');
+    const partner = req.user; // already loaded by auth middleware
+    const captainPref = captain ? captain.play_mixed : null;
+    const partnerPref = partner.play_mixed || null;
+
+    if (captainPref === 'YES' && partnerPref === 'YES') {
+        team.mixed_gender_preference = 'YES';
+    } else if (captainPref === 'NO' || partnerPref === 'NO') {
+        team.mixed_gender_preference = 'NO';
+    } else {
+        team.mixed_gender_preference = 'DOES_NOT_MATTER';
+    }
+
     await team.save();
 
     res.json({ message: 'Invite accepted', team });
@@ -195,11 +216,16 @@ const toggleSoloPool = async (req, res) => {
     try {
         const user = await User.findById(req.user._id);
 
+        const { experience_level, availability } = req.body;
+
         // Toggle user solo pool status
         if (user.solo_pool_status === 'LOOKING') {
             user.solo_pool_status = 'IDLE';
         } else {
             user.solo_pool_status = 'LOOKING';
+            // Update preferences when joining
+            if (experience_level) user.experience_level = experience_level;
+            if (availability) user.availability = availability;
         }
 
         await user.save();
@@ -224,6 +250,50 @@ const toggleSoloPool = async (req, res) => {
     }
 };
 
+// @desc    Queue next match during cooldown (Spec 2.1)
+// @route   POST /api/teams/queue-next
+// @access  Private (Captain)
+const queueNextMatch = async (req, res) => {
+    try {
+        const team = await Team.findOne({
+            captain_id: req.user._id,
+            status: { $ne: 'INACTIVE' }
+        });
+
+        if (!team) {
+            return res.status(404).json({ message: 'Team not found' });
+        }
+
+        // Only captain can queue
+        if (team.captain_id.toString() !== req.user._id.toString()) {
+            return res.status(401).json({ message: 'Only captain can queue the next match' });
+        }
+
+        // Can only queue during cooldown (result must be final first)
+        if (team.status !== 'COOLDOWN') {
+            return res.status(400).json({
+                message: `Queue is only available during cooldown. Current status: ${team.status}`
+            });
+        }
+
+        // Toggle queue
+        team.is_queued = !team.is_queued;
+        await team.save();
+
+        res.json({
+            message: team.is_queued
+                ? 'Queued! Your next match will be created automatically when cooldown ends.'
+                : 'Queue cancelled.',
+            is_queued: team.is_queued,
+            cooldown_expires_at: team.cooldown_expires_at
+        });
+
+    } catch (error) {
+        console.error('Error queuing next match:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
 module.exports = {
     createTeam,
     invitePartner,
@@ -231,5 +301,6 @@ module.exports = {
     getMyTeam,
     getLeagueTable,
     toggleSoloPool,
-    toggleUnavailable
+    toggleUnavailable,
+    queueNextMatch
 };

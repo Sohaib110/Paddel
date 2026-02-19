@@ -16,6 +16,11 @@ const UserSchema = new mongoose.Schema({
     gender: { type: String, enum: ['MALE', 'FEMALE', 'OTHER'] },
     play_mixed: { type: String, enum: ['YES', 'NO', 'DOES_NOT_MATTER'] },
     months_played: { type: Number, default: 0 },
+    experience_level: {
+        type: String,
+        enum: ['BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'VERY_COMPETITIVE'],
+        default: 'BEGINNER'
+    },
     availability: [{ type: String }], // e.g. ['Weeknights', 'Weekends']
     mode_selection: { type: String, enum: ['COMPETITIVE', 'FRIENDLY'], default: 'COMPETITIVE' },
 

@@ -8,7 +8,8 @@ const {
     getMyTeam,
     getLeagueTable,
     toggleSoloPool,
-    toggleUnavailable
+    toggleUnavailable,
+    queueNextMatch
 } = require('../controllers/teamController');
 
 // Team management
@@ -21,5 +22,6 @@ router.get('/league/:clubId', getLeagueTable);
 // Team features
 router.post('/toggle-solo-pool', protect, toggleSoloPool);
 router.post('/toggle-unavailable', protect, toggleUnavailable);
+router.post('/queue-next', protect, queueNextMatch);
 
 module.exports = router;

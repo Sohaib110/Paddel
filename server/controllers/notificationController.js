@@ -12,7 +12,7 @@ const getNotifications = async (req, res) => {
 
         const unreadCount = await Notification.countDocuments({
             user_id: req.user._id,
-            read: false
+            is_read: false
         });
 
         res.json({ notifications, unreadCount });
@@ -31,7 +31,7 @@ const markAsRead = async (req, res) => {
     try {
         const notification = await Notification.findOneAndUpdate(
             { _id: req.params.id, user_id: req.user._id },
-            { read: true },
+            { is_read: true },
             { new: true }
         );
 
@@ -54,8 +54,8 @@ const markAsRead = async (req, res) => {
 const markAllAsRead = async (req, res) => {
     try {
         await Notification.updateMany(
-            { user_id: req.user._id, read: false },
-            { read: true }
+            { user_id: req.user._id, is_read: false },
+            { is_read: true }
         );
 
         res.json({ message: 'All notifications marked as read' });

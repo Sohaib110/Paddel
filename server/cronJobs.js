@@ -1,8 +1,8 @@
 const cron = require('node-cron');
 const Match = require('./models/Match');
 const Team = require('./models/Team');
-const { finalizeMatchResult } = require('./services/matchmakingService');
-const { notifyResultConfirmed, notifyCooldownExpired, notifyTeamInactive, notifyUnavailableReminder } = require('./services/notificationService');
+const { finalizeMatchResult, findBestOpponent, createMatchWithLocking } = require('./services/matchmakingService');
+const { notifyResultConfirmed, notifyCooldownExpired, notifyTeamInactive, notifyUnavailableReminder, notifyMatchCreated } = require('./services/notificationService');
 
 /**
  * Cron Job 1: 48-Hour Auto-Confirmation
@@ -18,8 +18,8 @@ const autoConfirmMatches = cron.schedule('0 * * * *', async () => {
 
         // Find matches awaiting confirmation (ACTIVE status but with results) with deadline passed
         const expiredMatches = await Match.find({
-            status: 'ACTIVE',
-            result: { $exists: true }, // Result has been submitted
+            status: 'AWAITING_CONFIRMATION', // spec 1.5: 48-hour window
+            result: { $exists: true },
             confirmation_deadline: { $lte: now }
         }).populate('team_a_id team_b_id');
 
@@ -56,7 +56,6 @@ const expireCooldowns = cron.schedule('0 0 * * *', async () => {
 
         const now = new Date();
 
-        // Find teams in cooldown with expired cooldown_expires_at
         const teamsToRelease = await Team.find({
             status: 'COOLDOWN',
             cooldown_expires_at: { $lte: now }
@@ -67,10 +66,41 @@ const expireCooldowns = cron.schedule('0 0 * * *', async () => {
             team.cooldown_expires_at = undefined;
             await team.save();
 
-            // Notify captain
             await notifyCooldownExpired(team);
-
             console.log(`[CRON] Team ${team.name} cooldown expired, now AVAILABLE`);
+
+            // --- Spec 2.2: Auto-create match for queued teams ---
+            if (team.is_queued) {
+                console.log(`[CRON] Team ${team.name} is queued — searching for opponent...`);
+                try {
+                    const populatedTeam = await Team.findById(team._id)
+                        .populate('captain_id', 'full_name email phone_number')
+                        .populate('player_2_id', 'full_name email');
+
+                    const opponentResult = await findBestOpponent(populatedTeam);
+
+                    if (opponentResult.success) {
+                        const matchResult = await createMatchWithLocking(populatedTeam, opponentResult.opponent, 'COMPETITIVE');
+
+                        if (matchResult.success) {
+                            // Reset queue flag
+                            populatedTeam.is_queued = false;
+                            await populatedTeam.save();
+
+                            await notifyMatchCreated(matchResult.match, matchResult.teamA, matchResult.teamB, 'MATCH_ASSIGNED');
+                            console.log(`[CRON] Auto-match created for queued team ${team.name}`);
+                        } else {
+                            console.error(`[CRON] Auto-match conflict for team ${team.name}:`, matchResult.error);
+                            // Leave is_queued = true so it retries next cycle
+                        }
+                    } else {
+                        console.log(`[CRON] No opponent found for queued team ${team.name}: ${opponentResult.error}`);
+                        // Leave is_queued = true so it retries next cycle
+                    }
+                } catch (queueErr) {
+                    console.error(`[CRON] Error auto-matching queued team ${team.name}:`, queueErr);
+                }
+            }
         }
 
         console.log(`[CRON] Cooldown expiry complete. Released ${teamsToRelease.length} teams`);
@@ -165,8 +195,50 @@ const startCronJobs = () => {
     expireCooldowns.start();
     detectInactiveTeams.start();
     sendReturnReminders.start();
+    processQueuedMatchmaking.start();
     console.log('[CRON] All cron jobs started successfully');
 };
+
+/**
+ * Cron Job 5: Periodic Retry for Queued Teams (Spec 2.5)
+ * Runs every hour
+ * Finds AVAILABLE teams that are still is_queued and tries to find them a match
+ */
+const processQueuedMatchmaking = cron.schedule('0 * * * *', async () => {
+    try {
+        console.log('[CRON] Running periodic retry for queued teams...');
+
+        const queuedTeams = await Team.find({
+            status: 'AVAILABLE',
+            is_queued: true
+        });
+
+        for (const team of queuedTeams) {
+            console.log(`[CRON] Retrying matchmaking for queued team ${team.name}...`);
+            try {
+                const populatedTeam = await Team.findById(team._id)
+                    .populate('captain_id', 'full_name email phone_number')
+                    .populate('player_2_id', 'full_name email');
+
+                const opponentResult = await findBestOpponent(populatedTeam);
+
+                if (opponentResult.success) {
+                    const matchResult = await createMatchWithLocking(populatedTeam, opponentResult.opponent, 'COMPETITIVE', 'MATCH_ASSIGNED');
+
+                    if (matchResult.success) {
+                        populatedTeam.is_queued = false;
+                        await populatedTeam.save();
+                        console.log(`[CRON] Auto-match created for retried queued team ${team.name}`);
+                    }
+                }
+            } catch (err) {
+                console.error(`[CRON] Error in retry for team ${team.name}:`, err);
+            }
+        }
+    } catch (error) {
+        console.error('[CRON] Error in processQueuedMatchmaking job:', error);
+    }
+});
 
 /**
  * Stop all cron jobs
@@ -177,6 +249,7 @@ const stopCronJobs = () => {
     expireCooldowns.stop();
     detectInactiveTeams.stop();
     sendReturnReminders.stop();
+    processQueuedMatchmaking.stop();
     console.log('[CRON] All cron jobs stopped');
 };
 

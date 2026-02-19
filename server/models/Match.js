@@ -24,6 +24,7 @@ const MatchSchema = new mongoose.Schema({
     confirmation_deadline: { type: Date }, // 48 hours from submission
 
     week_cycle: { type: Number, required: true }, // For "One match per 7-day cycle" tracking
+    match_deadline: { type: Date }, // 7 days from match creation (spec 1.3 step 8)
 
 }, { timestamps: true });
 

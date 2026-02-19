@@ -3,6 +3,16 @@ const mongoose = require('mongoose');
 const TeamSchema = new mongoose.Schema({
     club_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Club', required: true },
     name: { type: String, required: true }, // Unique index to be applied
+    experience_level: {
+        type: String,
+        enum: ['BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'VERY_COMPETITIVE'],
+        required: true
+    },
+    mixed_gender_preference: {
+        type: String,
+        enum: ['YES', 'NO', 'DOES_NOT_MATTER'],
+        default: 'DOES_NOT_MATTER'
+    },
     captain_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     player_2_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // Null until accepted
 
@@ -31,6 +41,7 @@ const TeamSchema = new mongoose.Schema({
     losses: { type: Number, default: 0 },
     matches_played: { type: Number, default: 0 },
     solo_pool: { type: Boolean, default: false }, // Friendly mode toggle
+    is_queued: { type: Boolean, default: false }, // Spec 2.1: queue next match during cooldown
 }, { timestamps: true });
 
 // Ensure unique team name per club
