@@ -66,10 +66,13 @@ const invitePartner = async (req, res) => {
         res.json({ message: 'Code generated. Share the token with your partner.', invite_token });
     } catch (error) {
         console.error('CRITICAL: Error generating invite:', error);
+        console.error('TEAM STATE AT FAILURE:', JSON.stringify(team, null, 2));
         res.status(500).json({
             message: 'Invite generation failed. Server log has details.',
             error: error.message,
-            stack: error.stack
+            stack: error.stack,
+            teamId: req.params.id,
+            userId: req.user._id
         });
     }
 };

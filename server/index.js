@@ -62,9 +62,12 @@ app.get('/api/health', (req, res) => {
     });
 });
 
-// Use /:path* for Express 5 catch-all
-app.get('/:path*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../client/dist/index.html'));
+// Final fallback for SPA routing: serve index.html for non-API GET requests
+app.use((req, res, next) => {
+    if (req.method === 'GET' && !req.path.startsWith('/api')) {
+        return res.sendFile(path.join(__dirname, '../client/dist/index.html'));
+    }
+    next();
 });
 
 // Global Error Handler
