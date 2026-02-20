@@ -65,10 +65,11 @@ const invitePartner = async (req, res) => {
 
         res.json({ message: 'Code generated. Share the token with your partner.', invite_token });
     } catch (error) {
-        console.error('Error generating invite:', error);
+        console.error('CRITICAL: Error generating invite:', error);
         res.status(500).json({
-            message: 'Failed to generate invite. This may be due to incompatible data (old experience levels).',
-            error: error.message
+            message: 'Invite generation failed. Server log has details.',
+            error: error.message,
+            stack: error.stack
         });
     }
 };

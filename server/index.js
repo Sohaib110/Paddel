@@ -43,13 +43,27 @@ app.use('/api/matches', require('./routes/matchRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/notifications', notificationRoutes); // New route
 
-app.get('/api', (req, res) => {
-    res.send('API is running...');
+app.get('/api/health', (req, res) => {
+    const fs = require('fs');
+    const distPath = path.join(__dirname, '../client/dist');
+    let files = [];
+    try {
+        if (fs.existsSync(distPath)) {
+            files = fs.readdirSync(distPath);
+        }
+    } catch (e) { }
+
+    res.json({
+        status: 'ok',
+        cwd: process.cwd(),
+        dirname: __dirname,
+        distExists: fs.existsSync(distPath),
+        filesInDist: files
+    });
 });
 
-// The "catchall" handler: for any request that doesn't
-// match one above, send back React's index.html file.
-app.get('*path', (req, res) => {
+// Use (.*) for Express 5 catch-all
+app.get('(.*)', (req, res) => {
     res.sendFile(path.join(__dirname, '../client/dist/index.html'));
 });
 
@@ -58,7 +72,8 @@ app.use((err, req, res, next) => {
     console.error('Unhandled Error:', err);
     res.status(500).json({
         message: 'Internal Server Error',
-        error: process.env.NODE_ENV === 'production' ? null : err.message
+        error: err.message,
+        stack: err.stack
     });
 });
 
