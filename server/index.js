@@ -24,7 +24,11 @@ app.use(cors());
 app.use(express.json());
 
 // Serve static files from the React app
-app.use(express.static(path.join(__dirname, '../client/dist')));
+const clientDistPath = path.join(__dirname, '../client/dist');
+const fs = require('fs');
+console.log(`[STATIC] Serving client from: ${clientDistPath}`);
+console.log(`[STATIC] client/dist exists: ${fs.existsSync(clientDistPath)}`);
+app.use(express.static(clientDistPath));
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGO_URI)
