@@ -62,8 +62,8 @@ app.get('/api/health', (req, res) => {
     });
 });
 
-// Use (.*) for Express 5 catch-all
-app.get('(.*)', (req, res) => {
+// Use /:path* for Express 5 catch-all
+app.get('/:path*', (req, res) => {
     res.sendFile(path.join(__dirname, '../client/dist/index.html'));
 });
 
