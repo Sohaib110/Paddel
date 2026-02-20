@@ -1,0 +1,32 @@
+
+> client@0.0.0 build
+> vite build
+
+[33mYou are using Node.js 20.15.0. Vite requires Node.js version 20.19+ or 22.12+. Please upgrade your Node.js version.[39m
+[36mvite v7.3.1 [32mbuilding client environment for production...[36m[39m
+transforming...
+[32m✓[39m 28 modules transformed.
+[31m✗[39m Build failed in 1.67s
+[31merror during build:
+[31m[vite:esbuild] Transform failed with 1 error:
+C:/Users/DELL/Desktop/Paddel/client/src/pages/Dashboard.jsx:584:52: ERROR: Expected ")" but found "{"[31m
+file: [36mC:/Users/DELL/Desktop/Paddel/client/src/pages/Dashboard.jsx:584:52[31m
+[33m
+[33mExpected ")" but found "{"[33m
+582 |                                                  </div>
+583 |  
+584 |                                                      {/* Main Column: Rankings & History */}
+    |                                                      ^
+585 |                                              <div className="lg:col-span-8 space-y-8">
+586 |                                                  <div className="bg-white rounded-[2.5rem] border border-light-border ...
+[31m
+    at failureErrorWithLog (C:\Users\DELL\Desktop\Paddel\client\node_modules\esbuild\lib\main.js:1467:15)
+    at C:\Users\DELL\Desktop\Paddel\client\node_modules\esbuild\lib\main.js:736:50
+    at responseCallbacks.<computed> (C:\Users\DELL\Desktop\Paddel\client\node_modules\esbuild\lib\main.js:603:9)
+    at handleIncomingPacket (C:\Users\DELL\Desktop\Paddel\client\node_modules\esbuild\lib\main.js:658:12)
+    at Socket.readFromStdout (C:\Users\DELL\Desktop\Paddel\client\node_modules\esbuild\lib\main.js:581:7)
+    at Socket.emit (node:events:519:28)
+    at addChunk (node:internal/streams/readable:559:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:510:3)
+    at Readable.push (node:internal/streams/readable:390:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:191:23)[39m

@@ -123,12 +123,13 @@ const AdminDashboard = () => {
         <div className="min-h-screen bg-gradient-to-br from-light-bg via-light-surface to-slate-50">
             <main className="max-w-7xl mx-auto px-4 md:px-6 pt-32 pb-8 font-sans">
                 {/* Tactical Header */}
-                <div className="flex justify-between items-center mb-10">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
                     <div className="flex items-center gap-4">
                         <BackButton />
-                        
-                        <p className="text-[10px] font-black uppercase tracking-[0.4em] text-padel-blue mb-2">Operator: {user.full_name}</p>
-                        <h1 className="text-5xl font-black italic tracking-tighter text-text-primary uppercase">Central <span className="text-padel-blue">Command</span></h1>
+                        <div>
+                            <p className="text-[8px] md:text-[10px] font-black uppercase tracking-[0.4em] text-padel-blue mb-1 md:mb-2">Operator: {user.full_name}</p>
+                            <h1 className="text-3xl md:text-5xl font-black italic tracking-tighter text-text-primary uppercase">Central <span className="text-padel-blue">Command</span></h1>
+                        </div>
                     </div>
                     <div className="flex gap-3">
                         <NotificationBell />
@@ -195,21 +196,24 @@ const AdminDashboard = () => {
                                     </div>
                                     <div className="space-y-3">
                                         {clubs.map(club => (
-                                            <div key={club._id} className="p-4 border border-light-border rounded-xl hover:border-padel-green transition-colors">
-                                                <div className="flex justify-between items-start">
-                                                    <div>
-                                                        <h3 className="font-bold text-text-primary">{club.name}</h3>
-                                                        <p className="text-sm text-text-secondary">{club.location}</p>
+                                            <div key={club._id} className="p-4 md:p-6 border border-light-border rounded-xl hover:border-padel-green transition-colors bg-light-surface/30">
+                                                <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+                                                    <div className="min-w-0 flex-1">
+                                                        <h3 className="font-bold text-text-primary truncate">{club.name}</h3>
+                                                        <p className="text-sm text-text-secondary flex items-center gap-2">
+                                                            <Building2 size={12} />
+                                                            {club.location}
+                                                        </p>
                                                         {club.phone_number && (
-                                                            <p className="text-xs text-text-tertiary mt-1">{club.phone_number}</p>
+                                                            <p className="text-xs text-text-tertiary mt-1 font-medium">{club.phone_number}</p>
                                                         )}
                                                     </div>
-                                                    <div className="flex gap-2">
-                                                        <Button variant="outline" size="sm" onClick={() => setEditingClub(club)}>
-                                                            <Edit className="w-3 h-3" />
+                                                    <div className="flex gap-2 w-full sm:w-auto">
+                                                        <Button variant="outline" size="sm" onClick={() => setEditingClub(club)} className="flex-1 sm:flex-initial">
+                                                            <Edit className="w-3" />
                                                         </Button>
-                                                        <Button variant="danger" size="sm" onClick={() => handleDeleteClub(club._id)}>
-                                                            <Trash2 className="w-3 h-3" />
+                                                        <Button variant="danger" size="sm" onClick={() => handleDeleteClub(club._id)} className="flex-1 sm:flex-initial">
+                                                            <Trash2 className="w-3" />
                                                         </Button>
                                                     </div>
                                                 </div>
@@ -224,14 +228,14 @@ const AdminDashboard = () => {
                                 <div className="space-y-6">
                                     <div className="flex justify-between items-center">
                                         <h2 className="text-2xl font-black text-text-primary uppercase italic">Active Squads</h2>
-                                        <div className="flex gap-4">
+                                        <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
                                             <Input
-                                                placeholder="Search teams..."
+                                                placeholder="Search squads..."
                                                 value={searchTerm}
                                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                                className="w-64"
+                                                className="w-full sm:w-64"
                                             />
-                                            <Button variant="danger" onClick={handleRemoveInactive}>
+                                            <Button variant="danger" onClick={handleRemoveInactive} className="w-full sm:w-auto">
                                                 Purge Inactive
                                             </Button>
                                         </div>
@@ -241,27 +245,28 @@ const AdminDashboard = () => {
                                             t.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                                             t.captain_id?.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
                                         ).map(team => (
-                                            <div key={team._id} className="p-4 border border-light-border rounded-xl hover:border-padel-green transition-colors">
-                                                <div className="flex justify-between items-start">
-                                                    <div>
-                                                        <h3 className="font-bold text-text-primary">{team.name}</h3>
-                                                        <p className="text-sm text-text-secondary">
+                                            <div key={team._id} className="p-4 md:p-6 border border-light-border rounded-xl hover:border-padel-green transition-colors bg-light-surface/30">
+                                                <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+                                                    <div className="min-w-0 flex-1">
+                                                        <h3 className="font-bold text-text-primary truncate">{team.name}</h3>
+                                                        <p className="text-sm text-text-secondary mb-2">
                                                             Captain: {team.captain_id?.full_name || 'N/A'}
                                                         </p>
-                                                        <div className="flex items-center gap-3 mt-2">
-                                                            <span className={`px-2 py-1 rounded-lg text-xs font-bold ${team.status === 'INACTIVE' ? 'bg-red-100 text-red-700' :
+                                                        <div className="flex flex-wrap items-center gap-2 md:gap-3">
+                                                            <span className={`px-2 py-1 rounded-lg text-[10px] md:text-xs font-bold ${team.status === 'INACTIVE' ? 'bg-red-100 text-red-700' :
                                                                 team.status === 'AVAILABLE' ? 'bg-green-100 text-green-700' :
                                                                     'bg-blue-100 text-blue-700'
                                                                 }`}>
                                                                 {team.status}
                                                             </span>
-                                                            <span className="text-xs text-text-tertiary">{team.points || 0} points</span>
+                                                            <span className="text-[10px] md:text-xs text-text-tertiary font-bold uppercase tracking-widest">{team.points || 0} PTS</span>
                                                         </div>
                                                     </div>
                                                     <Button
                                                         variant={team.status === 'INACTIVE' ? 'primary' : 'danger'}
                                                         size="sm"
                                                         onClick={() => handleToggleTeam(team._id)}
+                                                        className="w-full sm:w-auto"
                                                     >
                                                         {team.status === 'INACTIVE' ? 'Enable' : 'Disable'}
                                                     </Button>
@@ -277,14 +282,14 @@ const AdminDashboard = () => {
                                 <div className="space-y-6">
                                     <div className="flex justify-between items-center">
                                         <h2 className="text-2xl font-black text-text-primary uppercase italic">Intelligence Archive</h2>
-                                        <div className="flex gap-4">
+                                        <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
                                             <Input
                                                 placeholder="Search callsigns..."
                                                 value={searchTerm}
                                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                                className="w-64"
+                                                className="w-full sm:w-64"
                                             />
-                                            <Button onClick={() => setShowForceMatch(true)}>
+                                            <Button onClick={() => setShowForceMatch(true)} className="w-full sm:w-auto">
                                                 <Plus className="w-4 h-4 mr-2" />
                                                 Force Entry
                                             </Button>
@@ -295,20 +300,20 @@ const AdminDashboard = () => {
                                             m.team_a_id?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                                             m.team_b_id?.name?.toLowerCase().includes(searchTerm.toLowerCase())
                                         ).map(match => (
-                                            <div key={match._id} className="p-4 border border-light-border rounded-xl hover:border-padel-green transition-colors">
-                                                <div className="flex justify-between items-start">
-                                                    <div>
-                                                        <div className="flex items-center gap-3 mb-2">
-                                                            <span className="font-bold text-text-primary">
+                                            <div key={match._id} className="p-4 md:p-6 border border-light-border rounded-xl hover:border-padel-green transition-colors bg-light-surface/30">
+                                                <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-3">
+                                                            <span className="font-bold text-text-primary text-sm md:text-base">
                                                                 {match.team_a_id?.name || 'Team A'}
                                                             </span>
-                                                            <span className="text-text-tertiary font-bold">VS</span>
-                                                            <span className="font-bold text-text-primary">
+                                                            <span className="text-padel-green font-black italic text-xs">VS</span>
+                                                            <span className="font-bold text-text-primary text-sm md:text-base">
                                                                 {match.team_b_id?.name || 'Team B'}
                                                             </span>
                                                         </div>
-                                                        <div className="flex items-center gap-3">
-                                                            <span className={`px-2 py-1 rounded-lg text-xs font-bold ${match.status === 'PROPOSED' ? 'bg-amber-100 text-amber-700' :
+                                                        <div className="flex flex-wrap items-center gap-3">
+                                                            <span className={`px-2 py-1 rounded-lg text-[10px] md:text-xs font-bold ${match.status === 'PROPOSED' ? 'bg-amber-100 text-amber-700' :
                                                                 match.status === 'ACCEPTED' ? 'bg-padel-blue/10 text-padel-blue' :
                                                                     match.status === 'SCHEDULED' ? 'bg-padel-green/10 text-padel-green' :
                                                                         match.status === 'AWAITING_CONFIRMATION' ? 'bg-purple-100 text-purple-700' :
@@ -318,19 +323,21 @@ const AdminDashboard = () => {
                                                                 {match.status}
                                                             </span>
                                                             {match.score && (
-                                                                <span className="text-xs text-text-tertiary">{match.score}</span>
+                                                                <span className="text-[10px] md:text-xs text-text-tertiary font-bold">{match.score}</span>
                                                             )}
                                                         </div>
                                                     </div>
-                                                    <div className="flex gap-2">
+                                                    <div className="flex gap-2 w-full sm:w-auto">
                                                         <Button variant="outline" size="sm" onClick={() => {
                                                             setSelectedMatch(match);
                                                             setShowOverrideResult(true);
-                                                        }}>
-                                                            <Edit className="w-3 h-3" />
+                                                        }} className="flex-1 sm:flex-initial">
+                                                            <Edit className="w-3 h-3 md:mr-2" />
+                                                            <span className="hidden md:inline">Edit</span>
                                                         </Button>
-                                                        <Button variant="danger" size="sm" onClick={() => handleDeleteMatch(match._id)}>
-                                                            <Trash2 className="w-3 h-3" />
+                                                        <Button variant="danger" size="sm" onClick={() => handleDeleteMatch(match._id)} className="flex-1 sm:flex-initial">
+                                                            <Trash2 className="w-3 h-3 md:mr-2" />
+                                                            <span className="hidden md:inline">Delete</span>
                                                         </Button>
                                                     </div>
                                                 </div>
@@ -349,25 +356,25 @@ const AdminDashboard = () => {
                                             <p className="text-center text-text-tertiary py-10">No disputes to review</p>
                                         ) : (
                                             disputes.map(dispute => (
-                                                <div key={dispute._id} className="p-4 border-2 border-amber-200 bg-amber-50 rounded-xl">
-                                                    <div className="flex justify-between items-start mb-3">
+                                                <div key={dispute._id} className="p-4 md:p-6 border-2 border-amber-200 bg-amber-50 rounded-2xl shadow-sm">
+                                                    <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-4">
                                                         <div>
-                                                            <h3 className="font-bold text-text-primary">
-                                                                {dispute.match_id?.team_a_id?.name} vs {dispute.match_id?.team_b_id?.name}
+                                                            <h3 className="font-bold text-text-primary text-sm md:text-base">
+                                                                {dispute.match_id?.team_a_id?.name} <span className="text-padel-green italic">VS</span> {dispute.match_id?.team_b_id?.name}
                                                             </h3>
-                                                            <p className="text-sm text-text-secondary">
+                                                            <p className="text-xs text-text-tertiary mt-1 font-medium">
                                                                 Disputed by: {dispute.disputed_by?.full_name}
                                                             </p>
                                                         </div>
-                                                        <span className={`px-3 py-1 rounded-lg text-xs font-bold ${dispute.status === 'PENDING' ? 'bg-amber-200 text-amber-800' :
+                                                        <span className={`px-3 py-1 rounded-lg text-[10px] md:text-xs font-black uppercase tracking-widest ${dispute.status === 'PENDING' ? 'bg-amber-200 text-amber-800' :
                                                             dispute.status === 'RESOLVED' ? 'bg-green-200 text-green-800' :
                                                                 'bg-red-200 text-red-800'
                                                             }`}>
                                                             {dispute.status}
                                                         </span>
                                                     </div>
-                                                    <div className="bg-white rounded-lg p-3 mb-3">
-                                                        <p className="text-sm text-text-secondary"><strong>Reason:</strong> {dispute.reason}</p>
+                                                    <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 mb-4 border border-amber-100">
+                                                        <p className="text-xs md:text-sm text-text-secondary leading-relaxed"><strong>Tactical Report:</strong> {dispute.reason}</p>
                                                     </div>
                                                     {dispute.status === 'PENDING' && (
                                                         <Button
@@ -376,18 +383,19 @@ const AdminDashboard = () => {
                                                                 setSelectedDispute(dispute);
                                                                 setShowResolveDispute(true);
                                                             }}
+                                                            className="w-full sm:w-auto"
                                                         >
                                                             Resolve Dispute
                                                         </Button>
                                                     )}
                                                     {dispute.status === 'RESOLVED' && (
-                                                        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                                                        <div className="bg-green-50/50 border border-green-200 rounded-xl p-4">
                                                             <p className="text-xs text-green-800">
-                                                                <strong>Resolution:</strong> {dispute.resolution}
+                                                                <strong>Outcome:</strong> {dispute.resolution}
                                                             </p>
                                                             {dispute.admin_notes && (
-                                                                <p className="text-xs text-green-700 mt-1">
-                                                                    <strong>Notes:</strong> {dispute.admin_notes}
+                                                                <p className="text-[10px] text-green-700 mt-2 font-medium">
+                                                                    <strong>Intelligence Notes:</strong> {dispute.admin_notes}
                                                                 </p>
                                                             )}
                                                         </div>
@@ -489,8 +497,8 @@ const CreateClubModal = ({ show, onClose, onSuccess, club }) => {
 
     return (
         <>
-            <div className="fixed inset-0 bg-black/30 z-40 backdrop-blur-sm" onClick={onClose} />
-            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md border border-light-border">
+            <div className="fixed inset-0 bg-black/60 z-40 backdrop-blur-md" onClick={onClose} />
+            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-3xl shadow-2xl p-6 md:p-8 w-[95%] max-w-md border border-light-border max-h-[90vh] overflow-y-auto">
                 <h3 className="text-xl font-black text-text-primary mb-4">{club ? 'Edit Club' : 'Create New Club'}</h3>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <Input
@@ -549,8 +557,8 @@ const ForceMatchModal = ({ show, onClose, onSuccess, teams }) => {
 
     return (
         <>
-            <div className="fixed inset-0 bg-black/30 z-40 backdrop-blur-sm" onClick={onClose} />
-            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md border border-light-border">
+            <div className="fixed inset-0 bg-black/60 z-40 backdrop-blur-md" onClick={onClose} />
+            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-3xl shadow-2xl p-6 md:p-8 w-[95%] max-w-md border border-light-border max-h-[90vh] overflow-y-auto">
                 <h3 className="text-xl font-black text-text-primary mb-4">Force Create Match</h3>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
@@ -619,8 +627,8 @@ const ResolveDisputeModal = ({ show, onClose, onSuccess, dispute }) => {
 
     return (
         <>
-            <div className="fixed inset-0 bg-black/30 z-40 backdrop-blur-sm" onClick={onClose} />
-            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md border border-light-border">
+            <div className="fixed inset-0 bg-black/60 z-40 backdrop-blur-md" onClick={onClose} />
+            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-3xl shadow-2xl p-6 md:p-8 w-[95%] max-w-md border border-light-border max-h-[90vh] overflow-y-auto">
                 <h3 className="text-xl font-black text-text-primary mb-4">Resolve Dispute</h3>
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
                     <p className="text-sm text-amber-900"><strong>Reason:</strong> {dispute.reason}</p>
