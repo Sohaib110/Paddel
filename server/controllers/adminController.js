@@ -181,10 +181,17 @@ const toggleTeamActive = async (req, res) => {
         }
 
         // Toggle between INACTIVE and AVAILABLE
-        team.status = team.status === 'INACTIVE' ? 'AVAILABLE' : 'INACTIVE';
-        await team.save();
+        const newStatus = team.status === 'INACTIVE' ? 'AVAILABLE' : 'INACTIVE';
 
-        res.json({ message: `Team ${team.status === 'INACTIVE' ? 'disabled' : 'enabled'}`, team });
+        // Use findByIdAndUpdate to avoid validation errors on legacy documents 
+        // that might be missing newly required fields
+        const updatedTeam = await Team.findByIdAndUpdate(
+            req.params.id,
+            { status: newStatus },
+            { new: true }
+        );
+
+        res.json({ message: `Team ${newStatus === 'INACTIVE' ? 'disabled' : 'enabled'}`, team: updatedTeam });
     } catch (error) {
         console.error('Error toggling team:', error);
         res.status(500).json({ message: 'Server error' });
