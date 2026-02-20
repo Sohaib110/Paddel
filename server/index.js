@@ -62,10 +62,11 @@ app.get('/api/health', (req, res) => {
     });
 });
 
-// Final fallback for SPA routing: serve index.html for non-API GET requests
-app.get('*', (req, res, next) => {
+// Final fallback for SPA routing: serve index.html for non-API GET requests.
+// We use app.use without a path to completely bypass Express 5's path-to-regexp '*' issue.
+app.use((req, res, next) => {
     // Skip if it's an API request or not a GET
-    if (req.path.startsWith('/api') || req.method !== 'GET') {
+    if (req.method !== 'GET' || req.path.startsWith('/api')) {
         return next();
     }
 
@@ -78,7 +79,10 @@ app.get('*', (req, res, next) => {
     } else if (require('fs').existsSync(rootDistPath)) {
         res.sendFile(rootDistPath);
     } else {
-        console.error('CRITICAL: SPA index.html not found at:', distPath, 'or', rootDistPath);
+        // Only log error if it looks like a page request (no extension)
+        if (!req.path.includes('.')) {
+            console.error('CRITICAL: SPA index.html not found at:', distPath, 'or', rootDistPath);
+        }
         next();
     }
 });
