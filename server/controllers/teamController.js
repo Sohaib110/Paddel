@@ -45,34 +45,43 @@ const createTeam = async (req, res) => {
 // @access  Private (Captain)
 const invitePartner = async (req, res) => {
     try {
-        const team = await Team.findById(req.params.id);
+        const teamId = req.params.id;
+        const captainId = req.user._id;
 
-        if (!team) {
+        // Verify team existence and captain status
+        const teamCheck = await Team.findById(teamId);
+        if (!teamCheck) {
             return res.status(404).json({ message: 'Team not found' });
         }
 
-        if (team.captain_id.toString() !== req.user._id.toString()) {
+        if (teamCheck.captain_id.toString() !== captainId.toString()) {
             return res.status(401).json({ message: 'Not authorized' });
         }
 
         // Generate Invite Token
         const invite_token = crypto.randomBytes(20).toString('hex');
-        team.invite_token = invite_token;
 
-        // Critical: If the team has an old experience_level (e.g. 'BEGINNER'), 
-        // saving will fail due to the updated enum. We'll handle this.
-        await team.save();
+        // Use findByIdAndUpdate to bypass complex model validation if the 
+        // existing doc has old/legacy values.
+        const updatedTeam = await Team.findByIdAndUpdate(
+            teamId,
+            { $set: { invite_token: invite_token } },
+            { new: true, runValidators: false } // Safety: skip validators for legacy data
+        );
+
+        if (!updatedTeam) {
+            throw new Error('Failed to update team with token');
+        }
 
         res.json({ message: 'Code generated. Share the token with your partner.', invite_token });
     } catch (error) {
         console.error('CRITICAL: Error generating invite:', error);
-        console.error('TEAM STATE AT FAILURE:', JSON.stringify(team, null, 2));
         res.status(500).json({
             message: 'Invite generation failed. Server log has details.',
             error: error.message,
             stack: error.stack,
             teamId: req.params.id,
-            userId: req.user._id
+            userId: req.user?._id
         });
     }
 };

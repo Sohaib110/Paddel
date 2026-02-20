@@ -63,11 +63,24 @@ app.get('/api/health', (req, res) => {
 });
 
 // Final fallback for SPA routing: serve index.html for non-API GET requests
-app.use((req, res, next) => {
-    if (req.method === 'GET' && !req.path.startsWith('/api')) {
-        return res.sendFile(path.join(__dirname, '../client/dist/index.html'));
+app.get('*', (req, res, next) => {
+    // Skip if it's an API request or not a GET
+    if (req.path.startsWith('/api') || req.method !== 'GET') {
+        return next();
     }
-    next();
+
+    const distPath = path.join(__dirname, '../client/dist/index.html');
+    const rootDistPath = path.join(process.cwd(), 'client/dist/index.html');
+
+    // Try multiple possible locations for index.html on Render
+    if (require('fs').existsSync(distPath)) {
+        res.sendFile(distPath);
+    } else if (require('fs').existsSync(rootDistPath)) {
+        res.sendFile(rootDistPath);
+    } else {
+        console.error('CRITICAL: SPA index.html not found at:', distPath, 'or', rootDistPath);
+        next();
+    }
 });
 
 // Global Error Handler
