@@ -170,17 +170,22 @@ const toggleUnavailable = async (req, res) => {
 // @route   GET /api/teams/me
 // @access  Private
 const getMyTeam = async (req, res) => {
-    // Find team where user is captain OR player 2
-    const team = await Team.findOne({
-        $or: [{ captain_id: req.user._id }, { player_2_id: req.user._id }],
-        status: { $ne: 'INACTIVE' } // Assuming we want active team
-    }).populate('player_2_id', 'full_name');
+    try {
+        // Find team where user is captain OR player 2
+        const team = await Team.findOne({
+            $or: [{ captain_id: req.user._id }, { player_2_id: req.user._id }],
+            status: { $ne: 'INACTIVE' } // Assuming we want active team
+        }).populate('player_2_id', 'full_name');
 
-    // If no team found, return null (200 OK) or 404? 
-    // 200 with null is easier for frontend "create team" state.
-    if (!team) return res.json(null);
+        // If no team found, return null (200 OK) or 404? 
+        // 200 with null is easier for frontend "create team" state.
+        if (!team) return res.json(null);
 
-    res.json(team);
+        res.json(team);
+    } catch (error) {
+        console.error('Error in getMyTeam:', error);
+        res.status(500).json({ message: 'Server error fetching your team', error: error.message });
+    }
 };
 
 // @desc    Get League Table

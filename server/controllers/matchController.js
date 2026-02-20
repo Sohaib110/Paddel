@@ -321,7 +321,8 @@ const getMyActiveMatch = async (req, res) => {
     try {
         // Find user's team
         const myTeam = await Team.findOne({
-            $or: [{ captain_id: req.user._id }, { player_2_id: req.user._id }]
+            $or: [{ captain_id: req.user._id }, { player_2_id: req.user._id }],
+            status: { $ne: 'INACTIVE' }
         });
 
         if (!myTeam) {
@@ -331,7 +332,7 @@ const getMyActiveMatch = async (req, res) => {
         // Find active match
         const match = await Match.findOne({
             $or: [{ team_a_id: myTeam._id }, { team_b_id: myTeam._id }],
-            status: { $in: ['PROPOSED', 'ACCEPTED', 'SCHEDULED', 'AWAITING_CONFIRMATION', 'COMPLETED', 'DISPUTED'] }
+            status: { $in: ['PROPOSED', 'ACCEPTED', 'SCHEDULED', 'AWAITING_CONFIRMATION', 'DISPUTED'] }
         })
             .populate({
                 path: 'team_a_id',
@@ -349,7 +350,7 @@ const getMyActiveMatch = async (req, res) => {
 
     } catch (error) {
         console.error('Error getting active match:', error);
-        res.status(500).json({ message: 'Server error' });
+        res.status(500).json({ message: 'Server error fetching active match', error: error.message });
     }
 };
 

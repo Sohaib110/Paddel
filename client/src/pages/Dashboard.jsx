@@ -70,7 +70,7 @@ const Dashboard = () => {
     const [score, setScore] = useState('');
     const [showDispute, setShowDispute] = useState(false);
     const [matchMode, setMatchMode] = useState('COMPETITIVE');
-    const [matchExperience, setMatchExperience] = useState(user.experience_level || '0-1 Months');
+    const [matchExperience, setMatchExperience] = useState(user?.experience_level || '0-1 Months');
 
     useEffect(() => {
         fetchData();

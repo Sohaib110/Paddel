@@ -15,11 +15,16 @@ const { startCronJobs } = require('./cronJobs'); // Changed from setupCronJobs
 
 dotenv.config();
 
+const path = require('path');
+
 const app = express();
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Serve static files from the React app
+app.use(express.static(path.join(__dirname, '../client/dist')));
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGO_URI)
@@ -38,8 +43,23 @@ app.use('/api/matches', require('./routes/matchRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/notifications', notificationRoutes); // New route
 
-app.get('/', (req, res) => {
+app.get('/api', (req, res) => {
     res.send('API is running...');
+});
+
+// The "catchall" handler: for any request that doesn't
+// match one above, send back React's index.html file.
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../client/dist/index.html'));
+});
+
+// Global Error Handler
+app.use((err, req, res, next) => {
+    console.error('Unhandled Error:', err);
+    res.status(500).json({
+        message: 'Internal Server Error',
+        error: process.env.NODE_ENV === 'production' ? null : err.message
+    });
 });
 
 const PORT = process.env.PORT || 5000;
