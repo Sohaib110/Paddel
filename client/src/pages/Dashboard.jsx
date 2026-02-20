@@ -116,6 +116,10 @@ const Dashboard = () => {
         fetchData();
     }, []);
 
+    // Guard: if user becomes null (logout), don't render anything
+    // MUST be placed AFTER all hooks to avoid violating Rules of Hooks
+    if (!user) return null;
+
     const fetchData = async () => {
         try {
             const [teamRes, matchRes] = await Promise.all([
@@ -265,14 +269,14 @@ const Dashboard = () => {
                                         <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary mb-3">Operating Solo?</p>
                                         <Button
                                             size="md"
-                                            variant={user.solo_pool_status === 'LOOKING' ? 'secondary' : 'outline'}
+                                            variant={user?.solo_pool_status === 'LOOKING' ? 'secondary' : 'outline'}
                                             onClick={handleToggleSoloPool}
                                             className="w-full"
                                         >
                                             <Search className="w-4 h-4 mr-2" />
-                                            {user.solo_pool_status === 'LOOKING' ? 'Exit Solo Pool' : 'Enter Solo Pool'}
+                                            {user?.solo_pool_status === 'LOOKING' ? 'Exit Solo Pool' : 'Enter Solo Pool'}
                                         </Button>
-                                        {user.solo_pool_status === 'LOOKING' && (
+                                        {user?.solo_pool_status === 'LOOKING' && (
                                             <p className="mt-2 text-[10px] text-padel-blue font-bold animate-pulse">Searching for partner...</p>
                                         )}
                                     </div>
@@ -461,7 +465,7 @@ const Dashboard = () => {
                                                         </Button>
                                                     )}
 
-                                                    {activeMatch.status === 'AWAITING_CONFIRMATION' && activeMatch.submitted_by !== user._id && (
+                                                    {activeMatch.status === 'AWAITING_CONFIRMATION' && activeMatch.submitted_by !== user?._id && (
                                                         <div className="flex gap-2">
                                                             <Button onClick={handleConfirmMatch} className="flex-1 bg-padel-blue text-white py-3 md:py-4 text-xs md:text-sm font-black shadow-xl shadow-padel-blue/20">
                                                                 Confirm Intel
@@ -473,7 +477,7 @@ const Dashboard = () => {
                                                     )}
                                                 </div>
 
-                                                {activeMatch.status === 'AWAITING_CONFIRMATION' && activeMatch.submitted_by === user._id && (
+                                                {activeMatch.status === 'AWAITING_CONFIRMATION' && activeMatch.submitted_by === user?._id && (
                                                     <div className="bg-white/10 border border-white/20 p-3 md:p-4 rounded-2xl text-center">
                                                         <p className="text-[10px] md:text-xs font-bold text-white uppercase tracking-widest">Signal Transmitted</p>
                                                         <p className="text-[8px] md:text-[10px] text-text-tertiary mt-1 italic">Waiting for opponent confirmation (48h)</p>

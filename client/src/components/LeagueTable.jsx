@@ -45,7 +45,7 @@ const LeagueTable = ({ clubId }) => {
                             const isFirst = index === 0;
                             const isSecond = index === 1;
                             const isThird = index === 2;
-                            const isUserTeam = team.captain_id === user._id || team.player_2_id === user._id;
+                            const isUserTeam = user && (team.captain_id === user._id || team.player_2_id === user._id);
 
                             return (
                                 <motion.tr

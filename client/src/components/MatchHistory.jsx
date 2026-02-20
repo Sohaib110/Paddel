@@ -30,7 +30,7 @@ const MatchHistory = ({ teamId }) => {
     return (
         <div className="bg-white rounded-[2rem] overflow-hidden">
             <div className="space-y-4 p-4">
-                {matches.map((match, index) => {
+                {matches.filter(match => match.team_a_id && match.team_b_id).map((match, index) => {
                     const isTeamA = match.team_a_id._id === teamId;
                     const isWin = isTeamA ? match.result === 'WIN' : match.result === 'LOSS';
                     return (
