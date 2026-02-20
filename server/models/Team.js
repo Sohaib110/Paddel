@@ -5,7 +5,7 @@ const TeamSchema = new mongoose.Schema({
     name: { type: String, required: true }, // Unique index to be applied
     experience_level: {
         type: String,
-        enum: ['0-1 Months', '2-4 Months', '5-9 Months', '10+ Months'],
+        enum: ['0-1 Months', '2-4 Months', '5-9 Months', '10+ Months', 'BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'VERY_COMPETITIVE'],
         required: true
     },
     mixed_gender_preference: {

@@ -44,26 +44,33 @@ const createTeam = async (req, res) => {
 // @route   POST /api/teams/:id/invite
 // @access  Private (Captain)
 const invitePartner = async (req, res) => {
-    const { email } = req.body;
-    const team = await Team.findById(req.params.id);
+    try {
+        const team = await Team.findById(req.params.id);
 
-    if (!team) {
-        return res.status(404).json({ message: 'Team not found' });
+        if (!team) {
+            return res.status(404).json({ message: 'Team not found' });
+        }
+
+        if (team.captain_id.toString() !== req.user._id.toString()) {
+            return res.status(401).json({ message: 'Not authorized' });
+        }
+
+        // Generate Invite Token
+        const invite_token = crypto.randomBytes(20).toString('hex');
+        team.invite_token = invite_token;
+
+        // Critical: If the team has an old experience_level (e.g. 'BEGINNER'), 
+        // saving will fail due to the updated enum. We'll handle this.
+        await team.save();
+
+        res.json({ message: 'Code generated. Share the token with your partner.', invite_token });
+    } catch (error) {
+        console.error('Error generating invite:', error);
+        res.status(500).json({
+            message: 'Failed to generate invite. This may be due to incompatible data (old experience levels).',
+            error: error.message
+        });
     }
-
-    if (team.captain_id.toString() !== req.user._id.toString()) {
-        return res.status(401).json({ message: 'Not authorized' });
-    }
-
-    // Generate Invite Token
-    const invite_token = crypto.randomBytes(20).toString('hex');
-    team.invite_token = invite_token;
-    await team.save();
-
-    // Simplified invitation: no auto-notifications since email is removed.
-    // Partner will join via the "copy code" link.
-
-    res.json({ message: 'Code generated. Share the token with your partner.', invite_token });
 };
 
 // @desc    Accept invite
