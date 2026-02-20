@@ -24,8 +24,6 @@ const createNotification = async ({ userId, type, title, message, matchId = null
     }
 };
 
-const { sendMatchFoundEmail } = require('./emailService');
-
 /**
  * Create notifications for both team captains about a new match
  */
@@ -60,10 +58,6 @@ const notifyMatchCreated = async (match, teamA, teamB, notificationType = 'MATCH
                 session
             })
         ]);
-
-        // 2. Email notifications (Step 8)
-        if (captainA) await sendMatchFoundEmail(captainA, teamA, teamB);
-        if (captainB) await sendMatchFoundEmail(captainB, teamB, teamA);
 
         return { success: true };
     } catch (error) {

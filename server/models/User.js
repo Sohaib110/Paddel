@@ -18,8 +18,8 @@ const UserSchema = new mongoose.Schema({
     months_played: { type: Number, default: 0 },
     experience_level: {
         type: String,
-        enum: ['BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'VERY_COMPETITIVE'],
-        default: 'BEGINNER'
+        enum: ['0-1 Months', '2-4 Months', '5-9 Months', '10+ Months'],
+        default: '0-1 Months'
     },
     availability: [{ type: String }], // e.g. ['Weeknights', 'Weekends']
     mode_selection: { type: String, enum: ['COMPETITIVE', 'FRIENDLY'], default: 'COMPETITIVE' },

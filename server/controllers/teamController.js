@@ -10,7 +10,7 @@ const createTeam = async (req, res) => {
     const club_id = req.user.club_id;
 
     // Validate experience_level
-    const validLevels = ['BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'VERY_COMPETITIVE'];
+    const validLevels = ['0-1 Months', '2-4 Months', '5-9 Months', '10+ Months'];
     if (!experience_level || !validLevels.includes(experience_level)) {
         return res.status(400).json({
             message: `experience_level is required and must be one of: ${validLevels.join(', ')}`
@@ -58,25 +58,12 @@ const invitePartner = async (req, res) => {
     // Generate Invite Token
     const invite_token = crypto.randomBytes(20).toString('hex');
     team.invite_token = invite_token;
-    team.invite_email = email;
     await team.save();
 
-    // Notify registered user if they exist
-    const invitedUser = await User.findOne({ email: email.toLowerCase() });
-    if (invitedUser) {
-        const { createNotification } = require('../services/notificationService');
-        await createNotification({
-            userId: invitedUser._id,
-            type: 'TEAM_INVITE',
-            title: 'Squad Recruitment',
-            message: `You have been recruited by "${req.user.full_name}" to join team "${team.name}".`,
-            teamId: team._id,
-            actionUrl: `/accept-invite?token=${invite_token}`
-        });
-    }
+    // Simplified invitation: no auto-notifications since email is removed.
+    // Partner will join via the "copy code" link.
 
-    // In real app, send email here.
-    res.json({ message: 'Invite registered. Share the link or token with your partner.', invite_token });
+    res.json({ message: 'Code generated. Share the token with your partner.', invite_token });
 };
 
 // @desc    Accept invite

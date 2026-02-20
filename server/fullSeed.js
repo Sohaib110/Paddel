@@ -24,15 +24,15 @@ const fullSeed = async () => {
 
         // 2. Create Clubs
         const club1 = await Club.create({
-            name: 'Lahore Padel Centre',
-            location: 'Gulberg III, Lahore',
-            phone_number: '+92 300 1111111'
+            name: 'Eddie Irvines',
+            location: 'Bangor, Northern Ireland',
+            phone_number: '+44 28 9145 1457'
         });
 
         const club2 = await Club.create({
-            name: 'Islamabad Smash Oasis',
-            location: 'F-7, Islamabad',
-            phone_number: '+92 300 2222222'
+            name: 'Lahore Padel Centre',
+            location: 'Gulberg III, Lahore',
+            phone_number: '+92 300 1111111'
         });
         console.log('Clubs seeded.');
 
@@ -49,7 +49,7 @@ const fullSeed = async () => {
                 club_id: clubId,
                 phone_number: '+92000000000',
                 gender: 'MALE',
-                months_played: 12
+                experience_level: '10+ Months'
             });
         };
 
@@ -77,7 +77,8 @@ const fullSeed = async () => {
                 captain_id: capId,
                 player_2_id: p2Id,
                 club_id: clubId,
-                status: 'ELIGIBLE'
+                status: 'AVAILABLE',
+                experience_level: '10+ Months'
             });
         };
 

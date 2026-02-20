@@ -47,8 +47,8 @@ const isTeamEligible = (team, teamsWithDisputes = [], options = { isFriendly: fa
     return { eligible: true, reason: 'Eligible' };
 };
 
-// Spec 1.4: ordered level bands — Beginner(0) ... Very Competitive(3)
-const LEVEL_ORDER = ['BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'VERY_COMPETITIVE'];
+// Spec: ordered level bands — 0-1 Months ... 10+ Months
+const LEVEL_ORDER = ['0-1 Months', '2-4 Months', '5-9 Months', '10+ Months'];
 
 /**
  * Returns allowed level bands for a given team's experience_level.
@@ -57,20 +57,21 @@ const LEVEL_ORDER = ['BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'VERY_COMPETITIVE']
  */
 const getAllowedLevelBands = (level) => {
     const idx = LEVEL_ORDER.indexOf(level);
-    if (idx === -1) return LEVEL_ORDER; // unknown level → no restriction
-    const adjacent = [];
-    if (idx > 0) adjacent.push(LEVEL_ORDER[idx - 1]);
-    if (idx < LEVEL_ORDER.length - 1) adjacent.push(LEVEL_ORDER[idx + 1]);
-    // Remove the forbidden pairing: BEGINNER <-> VERY_COMPETITIVE
-    const forbidden = level === 'BEGINNER' ? 'VERY_COMPETITIVE' : level === 'VERY_COMPETITIVE' ? 'BEGINNER' : null;
-    const filtered = adjacent.filter(l => l !== forbidden);
-    return { same: [level], expanded: filtered };
+    if (idx === -1) return { same: LEVEL_ORDER, expanded: [] };
+
+    const same = [level];
+    const expanded = [];
+
+    if (idx > 0) expanded.push(LEVEL_ORDER[idx - 1]);
+    if (idx < LEVEL_ORDER.length - 1) expanded.push(LEVEL_ORDER[idx + 1]);
+
+    return { same, expanded };
 };
 
 /**
- * Find best opponent for a team (spec 1.3 + 1.4)
+ * Find best opponent for a team
  */
-const findBestOpponent = async (team, options = { isFriendly: false }) => {
+const findBestOpponent = async (team, options = { isFriendly: false, experienceOverride: null }) => {
     try {
         // 1. Fetch active disputes in this club
         const activeDisputes = await Dispute.find({
@@ -127,8 +128,8 @@ const findBestOpponent = async (team, options = { isFriendly: false }) => {
                 .sort((a, b) => Math.abs((a.points || 0) - (team.points || 0)) - Math.abs((b.points || 0) - (team.points || 0)));
         };
 
-        // 4. Spec 1.4 — Level-aware search
-        const teamLevel = team.experience_level;
+        // 4. Level-aware search
+        const teamLevel = options.experienceOverride || team.experience_level;
 
         if (teamLevel && LEVEL_ORDER.includes(teamLevel)) {
             const bands = getAllowedLevelBands(teamLevel);
@@ -352,8 +353,8 @@ const pairSoloPlayers = async (clubId) => {
                 if (pairedUserIds.has(player2._id.toString())) continue;
 
                 // --- Match Criteria 1: Level (Same > +/- 1) ---
-                const level1 = player1.experience_level || 'BEGINNER';
-                const level2 = player2.experience_level || 'BEGINNER';
+                const level1 = player1.experience_level || '0-1 Months';
+                const level2 = player2.experience_level || '0-1 Months';
                 const pos1 = LEVEL_ORDER.indexOf(level1);
                 const pos2 = LEVEL_ORDER.indexOf(level2);
                 const levelDiff = Math.abs(pos1 - pos2);
@@ -387,8 +388,8 @@ const pairSoloPlayers = async (clubId) => {
                 const teamName = `Friendly: ${player1.full_name.split(' ')[0]} & ${bestPartner.full_name.split(' ')[0]}`;
 
                 // Derived Team level = max of both (Spec 3.1)
-                const level1 = player1.experience_level || 'BEGINNER';
-                const level2 = bestPartner.experience_level || 'BEGINNER';
+                const level1 = player1.experience_level || '0-1 Months';
+                const level2 = bestPartner.experience_level || '0-1 Months';
                 const teamLevel = LEVEL_ORDER.indexOf(level1) > LEVEL_ORDER.indexOf(level2) ? level1 : level2;
 
                 const team = await Team.create({

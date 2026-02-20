@@ -13,7 +13,7 @@ const Register = () => {
     const [clubs, setClubs] = useState([]);
     const [formData, setFormData] = useState({
         full_name: '', email: '', phone_number: '', password: '',
-        club_id: '', months_played: 0, gender: 'MALE',
+        club_id: '', experience_level: '0-1 Months', gender: 'MALE',
         availability: 'EVENINGS', play_mixed: 'DOES_NOT_MATTER',
         mode_selection: 'COMPETITIVE'
     });
@@ -25,6 +25,11 @@ const Register = () => {
             try {
                 const { data } = await api.get('/clubs');
                 setClubs(data);
+                // Set Eddie Irvines as default if found
+                const defaultClub = data.find(c => c.name === 'Eddie Irvines');
+                if (defaultClub) {
+                    setFormData(prev => ({ ...prev, club_id: defaultClub._id }));
+                }
             } catch (err) {
                 console.error("Failed to fetch clubs", err);
             }
@@ -140,12 +145,17 @@ const Register = () => {
                     </div>
 
                     <div className="space-y-2">
-                        <label className="text-sm font-semibold text-text-secondary">Experience (Months)</label>
-                        <Input
-                            type="number"
-                            value={formData.months_played}
-                            onChange={(e) => setFormData({ ...formData, months_played: e.target.value })}
-                        />
+                        <label className="text-sm font-semibold text-text-secondary">Experience</label>
+                        <select
+                            className="w-full bg-white border border-light-border rounded-xl px-4 py-3 text-text-primary focus:border-padel-green focus:ring-2 focus:ring-padel-green/20 transition-all outline-none"
+                            value={formData.experience_level}
+                            onChange={(e) => setFormData({ ...formData, experience_level: e.target.value })}
+                        >
+                            <option value="0-1 Months">0-1 Months</option>
+                            <option value="2-4 Months">2-4 Months</option>
+                            <option value="5-9 Months">5-9 Months</option>
+                            <option value="10+ Months">10+ Months</option>
+                        </select>
                     </div>
 
                     <div className="space-y-2">

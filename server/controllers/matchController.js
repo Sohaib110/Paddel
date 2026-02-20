@@ -12,6 +12,7 @@ const findMatch = async (req, res) => {
     try {
         const teamId = req.params.teamId;
         const mode = req.query.mode || 'COMPETITIVE';
+        const experienceOverride = req.query.experience;
         const isFriendly = mode === 'FRIENDLY';
 
         // 1. Verify requesting team
@@ -50,7 +51,7 @@ const findMatch = async (req, res) => {
         }
 
         // 3. Find best opponent
-        const opponentResult = await findBestOpponent(myTeam, { isFriendly });
+        const opponentResult = await findBestOpponent(myTeam, { isFriendly, experienceOverride });
         if (!opponentResult.success) {
             return res.status(404).json({ message: opponentResult.error });
         }

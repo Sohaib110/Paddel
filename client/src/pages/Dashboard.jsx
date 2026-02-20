@@ -70,6 +70,7 @@ const Dashboard = () => {
     const [score, setScore] = useState('');
     const [showDispute, setShowDispute] = useState(false);
     const [matchMode, setMatchMode] = useState('COMPETITIVE');
+    const [matchExperience, setMatchExperience] = useState(user.experience_level || '0-1 Months');
 
     useEffect(() => {
         fetchData();
@@ -105,18 +106,18 @@ const Dashboard = () => {
     const handleInvite = async (e) => {
         e.preventDefault();
         try {
-            const { data } = await api.post(`/teams/${team._id}/invite`, { email: inviteEmail });
+            const { data } = await api.post(`/teams/${team._id}/invite`);
             setInvitedToken(data.invite_token);
-            toast.success('Invite sent!');
+            toast.success('Code generated!');
             fetchData();
         } catch (err) {
-            toast.error('Failed to invite partner');
+            toast.error('Failed to generate invite code');
         }
     };
 
     const handleFindMatch = async () => {
         try {
-            await api.post(`/matches/find/${team._id}?mode=${matchMode}`);
+            await api.post(`/matches/find/${team._id}?mode=${matchMode}&experience=${matchExperience}`);
             toast.success(`${matchMode.toLowerCase()} match found! Check your notifications.`);
             fetchData();
         } catch (err) {
@@ -300,17 +301,8 @@ const Dashboard = () => {
                                                     <p className="text-xs font-black uppercase tracking-widest text-amber-900 mb-3 flex items-center gap-2">
                                                         <Search size={14} /> Recruitment Open
                                                     </p>
-                                                    <p className="text-xs text-amber-700 font-medium mb-4 italic">"Share the token or link with your partner to activate the squad."</p>
-                                                    <form onSubmit={handleInvite} className="space-y-3">
-                                                        <Input
-                                                            type="email"
-                                                            value={inviteEmail}
-                                                            onChange={(e) => setInviteEmail(e.target.value)}
-                                                            placeholder="operator@email.com"
-                                                            className="text-xs"
-                                                        />
-                                                        <Button type="submit" size="md" className="w-full">Send Invite</Button>
-                                                    </form>
+                                                    <p className="text-xs text-amber-700 font-medium mb-4 italic">"Generate a token to share with your partner to activate the squad."</p>
+                                                    <Button onClick={handleInvite} size="md" className="w-full">Generate Invite Code</Button>
                                                     {invitedToken && (
                                                         <div className="mt-4 p-4 bg-white border border-amber-200 rounded-xl space-y-3">
                                                             <div>
@@ -507,6 +499,21 @@ const Dashboard = () => {
                                                     Friendly
                                                 </button>
                                             </div>
+
+                                            <div className="w-full mb-6 text-left">
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-text-tertiary block mb-2 px-1">Target Experience</label>
+                                                <select
+                                                    className="w-full bg-light-surface border border-light-border rounded-xl px-4 py-2 text-xs font-bold focus:border-padel-green outline-none"
+                                                    value={matchExperience}
+                                                    onChange={(e) => setMatchExperience(e.target.value)}
+                                                >
+                                                    <option value="0-1 Months">0-1 Months</option>
+                                                    <option value="2-4 Months">2-4 Months</option>
+                                                    <option value="5-9 Months">5-9 Months</option>
+                                                    <option value="10+ Months">10+ Months</option>
+                                                </select>
+                                            </div>
+
                                             <Button onClick={handleFindMatch} size="lg" className="w-full py-5 rounded-2xl shadow-xl shadow-padel-green/20">
                                                 <Search className="w-5 h-5 mr-2" /> Find Match
                                             </Button>

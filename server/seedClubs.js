@@ -6,6 +6,12 @@ dotenv.config();
 
 const dummyClubs = [
     {
+        name: 'Eddie Irvines',
+        location: 'Bangor, Northern Ireland',
+        phone_number: '+44 28 9145 1457',
+        website_link: 'https://eddieirvinesports.com'
+    },
+    {
         name: 'Lahore Padel Centre',
         location: 'Gulberg III, Lahore',
         phone_number: '+92 300 1234567',
