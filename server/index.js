@@ -62,29 +62,19 @@ app.get('/api/health', (req, res) => {
     });
 });
 
-// Final fallback for SPA routing: serve index.html for non-API GET requests.
-// We use app.use without a path to completely bypass Express 5's path-to-regexp '*' issue.
+// SPA fallback: serve index.html for all non-API GET requests (React Router handles routing client-side)
 app.use((req, res, next) => {
-    // Skip if it's an API request or not a GET
     if (req.method !== 'GET' || req.path.startsWith('/api')) {
         return next();
     }
 
-    const distPath = path.join(__dirname, '../client/dist/index.html');
-    const rootDistPath = path.join(process.cwd(), 'client/dist/index.html');
-
-    // Try multiple possible locations for index.html on Render
-    if (require('fs').existsSync(distPath)) {
-        res.sendFile(distPath);
-    } else if (require('fs').existsSync(rootDistPath)) {
-        res.sendFile(rootDistPath);
-    } else {
-        // Only log error if it looks like a page request (no extension)
-        if (!req.path.includes('.')) {
-            console.error('CRITICAL: SPA index.html not found at:', distPath, 'or', rootDistPath);
+    const indexPath = path.join(__dirname, '../client/dist/index.html');
+    res.sendFile(indexPath, (err) => {
+        if (err) {
+            console.error('SPA index.html not found:', indexPath, err.message);
+            res.status(500).send('Client build not found. Run the build command first.');
         }
-        next();
-    }
+    });
 });
 
 // Global Error Handler
