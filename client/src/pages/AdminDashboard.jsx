@@ -1,751 +1,445 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import Button from '../components/Button';
 import Input from '../components/Input';
-import NotificationBell from '../components/NotificationBell';
-import {
-    Shield, BarChart3, Building2, Users, Trophy, AlertCircle,
-    Plus, Edit, Trash2, Check, X, ArrowLeft, Eye, Activity
-} from 'lucide-react';
+import { Users, UserPlus, Calendar, Activity, Trophy, Shield, Search, PlusCircle, Trash2, CheckCircle, XCircle, AlertCircle, Settings, Layout, ClipboardList, Trash, Clock, ChevronRight, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
 import BackButton from '../components/BackButton';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const AdminDashboard = () => {
-    const { user, logout } = useAuth();
-    const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState('stats');
-    const [stats, setStats] = useState(null);
+    useAuth();
+    const [stats, setStats] = useState({ clubs: 0, teams: 0, matches: 0, disputes: 0 });
+    const [loading, setLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState('clubs');
+    const [showCreateClub, setShowCreateClub] = useState(false);
+    const [showForceMatch, setShowForceMatch] = useState(false);
+    const [showResolveDispute, setShowResolveDispute] = useState(false);
+    const [showOverrideResult, setShowOverrideResult] = useState(false);
+
+    // Data states
     const [clubs, setClubs] = useState([]);
     const [teams, setTeams] = useState([]);
     const [matches, setMatches] = useState([]);
     const [disputes, setDisputes] = useState([]);
-    const [loading, setLoading] = useState(false);
 
-    // Modals
-    const [showCreateClub, setShowCreateClub] = useState(false);
-    const [showForceMatch, setShowForceMatch] = useState(false);
-    const [showResolveDispute, setShowResolveDispute] = useState(false);
+    // Selection states
     const [selectedDispute, setSelectedDispute] = useState(null);
-    const [showOverrideResult, setShowOverrideResult] = useState(false);
     const [selectedMatch, setSelectedMatch] = useState(null);
-    const [editingClub, setEditingClub] = useState(null);
+
+    // Form states
+    const [newClub, setNewClub] = useState({ name: '', location: '' });
+    const [forceMatchData, setForceMatchData] = useState({ teamA: '', teamB: '', club: '', mode: 'COMPETITIVE' });
+    const [resolveData, setResolveData] = useState({ winner: '', score: '' });
+    const [overrideData, setOverrideData] = useState({ winner: '', score: '' });
+
+    // Search/Filter states
     const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
-        if (user?.role !== 'ADMIN') {
-            navigate('/dashboard');
-            return;
-        }
-        fetchData();
-    }, [activeTab]);
+        fetchAdminData();
+    }, []);
 
-    const fetchData = async () => {
+    const fetchAdminData = async () => {
         setLoading(true);
         try {
-            if (activeTab === 'stats') {
-                const { data } = await api.get('/admin/stats');
-                setStats(data);
-            } else if (activeTab === 'clubs') {
-                const { data } = await api.get('/admin/clubs');
-                setClubs(data);
-            } else if (activeTab === 'teams') {
-                const { data } = await api.get('/admin/teams');
-                setTeams(data);
-            } else if (activeTab === 'matches') {
-                const { data } = await api.get('/admin/matches');
-                setMatches(data);
-            } else if (activeTab === 'disputes') {
-                const { data } = await api.get('/admin/disputes');
-                setDisputes(data);
-            }
-        } catch (error) {
-            toast.error('Failed to fetch data');
+            const [cRes, tRes, mRes, dRes] = await Promise.all([
+                api.get('/admin/clubs'),
+                api.get('/admin/teams'),
+                api.get('/admin/matches'),
+                api.get('/admin/disputes')
+            ]);
+            setClubs(cRes.data);
+            setTeams(tRes.data);
+            setMatches(mRes.data);
+            setDisputes(dRes.data);
+            setStats({
+                clubs: cRes.data.length,
+                teams: tRes.data.length,
+                matches: mRes.data.length,
+                disputes: dRes.data.length
+            });
+        } catch {
+            toast.error('Failed to intercept system data');
         } finally {
-            setLoading(false);
+            setTimeout(() => setLoading(false), 500);
+        }
+    };
+
+    const handleCreateClub = async (e) => {
+        e.preventDefault();
+        try {
+            await api.post('/admin/clubs', newClub);
+            toast.success('Club node established');
+            setShowCreateClub(false);
+            fetchAdminData();
+        } catch {
+            toast.error('Failed to establish node');
+        }
+    };
+
+    const handleForceMatch = async (e) => {
+        e.preventDefault();
+        try {
+            await api.post('/admin/matches/force', forceMatchData);
+            toast.success('Match override initiated');
+            setShowForceMatch(false);
+            fetchAdminData();
+        } catch {
+            toast.error('Override failed');
+        }
+    };
+
+    const handleResolveDispute = async (e) => {
+        e.preventDefault();
+        try {
+            await api.post(`/admin/disputes/${selectedDispute._id}/resolve`, resolveData);
+            toast.success('Dispute clarified');
+            setShowResolveDispute(false);
+            fetchAdminData();
+        } catch {
+            toast.error('Clarification failed');
+        }
+    };
+
+    const handleOverrideResult = async (e) => {
+        e.preventDefault();
+        try {
+            await api.post(`/admin/matches/${selectedMatch._id}/override`, overrideData);
+            toast.success('Reality adjusted');
+            setShowOverrideResult(false);
+            fetchAdminData();
+        } catch {
+            toast.error('Adjustment failed');
         }
     };
 
     const handleDeleteClub = async (id) => {
-        if (!confirm('Delete this club? This cannot be undone.')) return;
+        if (!window.confirm('Terminate this node?')) return;
         try {
             await api.delete(`/admin/clubs/${id}`);
-            toast.success('Club deleted');
-            fetchData();
-        } catch (error) {
-            toast.error('Failed to delete club');
+            toast.success('Node terminated');
+            fetchAdminData();
+        } catch {
+            toast.error('Termination failed');
         }
     };
 
-    const handleToggleTeam = async (id) => {
-        try {
-            await api.post(`/admin/teams/${id}/toggle-active`);
-            toast.success('Team status updated');
-            fetchData();
-        } catch (error) {
-            toast.error('Failed to update team');
+    const filteredData = () => {
+        const query = searchTerm.toLowerCase();
+        switch (activeTab) {
+            case 'clubs': return clubs.filter(c => c.name.toLowerCase().includes(query) || c.location.toLowerCase().includes(query));
+            case 'teams': return teams.filter(t => t.name.toLowerCase().includes(query));
+            case 'matches': return matches.filter(m => m.team_a_id?.name.toLowerCase().includes(query) || m.team_b_id?.name.toLowerCase().includes(query));
+            case 'disputes': return disputes.filter(d => d.match_id?.team_a_id?.name.toLowerCase().includes(query) || d.match_id?.team_b_id?.name.toLowerCase().includes(query));
+            default: return [];
         }
     };
 
-    const handleRemoveInactive = async () => {
-        if (!confirm('Remove ALL inactive teams? This cannot be undone.')) return;
-        try {
-            const { data } = await api.delete('/admin/teams/remove-inactive');
-            toast.success(data.message);
-            fetchData();
-        } catch (error) {
-            toast.error('Failed to remove inactive teams');
-        }
+    const containerVariants = {
+        hidden: { opacity: 0 },
+        visible: { opacity: 1, transition: { staggerChildren: 0.05 } }
     };
 
-    const handleDeleteMatch = async (id) => {
-        if (!confirm('Delete this match?')) return;
-        try {
-            await api.delete(`/admin/matches/${id}`);
-            toast.success('Match deleted');
-            fetchData();
-        } catch (error) {
-            toast.error('Failed to delete match');
-        }
+    const itemVariants = {
+        hidden: { y: 10, opacity: 0 },
+        visible: { y: 0, opacity: 1 }
     };
 
-    const tabs = [
-        { id: 'stats', label: 'Statistics', icon: BarChart3 },
-        { id: 'clubs', label: 'Clubs', icon: Building2 },
-        { id: 'teams', label: 'Teams', icon: Users },
-        { id: 'matches', label: 'Matches', icon: Trophy },
-        { id: 'disputes', label: 'Disputes', icon: AlertCircle }
-    ];
+    if (loading) return (
+        <div className="min-h-screen bg-light-bg flex items-center justify-center tactical-grid">
+            <div className="flex flex-col items-center">
+                <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+                    className="w-16 h-16 border-4 border-padel-blue border-t-transparent rounded-full shadow-lg shadow-padel-blue/20"
+                />
+                <p className="mt-6 text-[10px] font-black uppercase tracking-[0.5em] text-padel-blue animate-pulse">Establishing Secure Connection...</p>
+            </div>
+        </div>
+    );
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-light-bg via-light-surface to-slate-50">
-            <main className="max-w-7xl mx-auto px-4 md:px-6 pt-32 pb-8 font-sans">
-                {/* Tactical Header */}
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
-                    <div className="flex items-center gap-4">
-                        <BackButton />
-                        <div>
-                            <p className="text-[8px] md:text-[10px] font-black uppercase tracking-[0.4em] text-padel-blue mb-1 md:mb-2">Operator: {user.full_name}</p>
-                            <h1 className="text-3xl md:text-5xl font-black italic tracking-tighter text-text-primary uppercase">Central <span className="text-padel-blue">Command</span></h1>
+        <div className="min-h-screen bg-gradient-to-br from-light-bg via-light-surface to-slate-50 font-sans tactical-grid pb-20">
+            <BackButton className="absolute top-4 left-4 md:top-6 md:left-6 z-20" />
+
+            <header className="max-w-7xl mx-auto px-4 sm:px-6 pt-24 md:pt-32 pb-12">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 md:gap-8">
+                    <motion.div
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                    >
+                        <div className="flex items-center gap-2 text-padel-blue font-black uppercase tracking-[0.4em] text-[10px] mb-2">
+                            <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-padel-blue opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-padel-blue"></span>
+                            </span>
+                            Live System Intel
+                        </div>
+                        <h1 className="text-4xl md:text-5xl lg:text-7xl font-black italic tracking-tighter text-text-primary uppercase leading-tight">
+                            Central <span className="text-padel-blue">Command.</span>
+                        </h1>
+                    </motion.div>
+
+                    <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full md:w-auto"
+                    >
+                        <QuickStat label="Clubs" value={stats.clubs} color="bg-padel-blue" />
+                        <QuickStat label="Squads" value={stats.teams} color="bg-sky-500" />
+                        <QuickStat label="Ops" value={stats.matches} color="bg-emerald-500" />
+                        <QuickStat label="Disputes" value={stats.disputes} color="bg-rose-500" pulse={stats.disputes > 0} />
+                    </motion.div>
+                </div>
+            </header>
+
+            <main className="max-w-7xl mx-auto px-4 sm:px-6">
+                <div className="bg-white rounded-[2.5rem] border border-light-border shadow-2xl overflow-hidden glass-card">
+                    {/* Tactical Tabs */}
+                    <div className="flex flex-wrap items-center justify-between border-b border-light-border bg-light-surface/40 p-4 md:p-6 gap-4">
+                        <div className="flex p-1 bg-light-surface rounded-2xl border border-light-border overflow-x-auto scrollbar-hide">
+                            <TabButton active={activeTab === 'clubs'} onClick={() => setActiveTab('clubs')} icon={<Layout size={16} />} label="Nodes" />
+                            <TabButton active={activeTab === 'teams'} onClick={() => setActiveTab('teams')} icon={<Users size={16} />} label="Squads" />
+                            <TabButton active={activeTab === 'matches'} onClick={() => setActiveTab('matches')} icon={<Zap size={16} />} label="Operations" />
+                            <TabButton active={activeTab === 'disputes'} onClick={() => setActiveTab('disputes')} icon={<AlertCircle size={16} />} label="Alerts" />
+                        </div>
+
+                        <div className="flex items-center gap-3 w-full md:w-auto">
+                            <div className="relative flex-1 md:flex-initial">
+                                <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-text-tertiary" />
+                                <input
+                                    type="text"
+                                    placeholder="Search network..."
+                                    className="pl-12 pr-4 py-3 bg-white border border-light-border rounded-xl text-xs font-bold focus:border-padel-blue outline-none w-full md:w-64"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                            </div>
+                            <Button size="sm" onClick={() => {
+                                if (activeTab === 'clubs') setShowCreateClub(true);
+                                else if (activeTab === 'matches') setShowForceMatch(true);
+                            }} className="shrink-0">
+                                <PlusCircle size={16} className="mr-2" /> Action
+                            </Button>
                         </div>
                     </div>
-                    <div className="flex gap-3">
-                        <NotificationBell />
+
+                    <div className="p-4 md:p-8">
+                        <motion.div
+                            key={activeTab}
+                            variants={containerVariants}
+                            initial="hidden"
+                            animate="visible"
+                            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                        >
+                            <AnimatePresence mode="popLayout">
+                                {filteredData().map((item) => (
+                                    <motion.div
+                                        key={item._id}
+                                        variants={itemVariants}
+                                        layout
+                                        initial={{ opacity: 0, scale: 0.95 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        exit={{ opacity: 0, scale: 0.95 }}
+                                        className="group"
+                                    >
+                                        <DataCard
+                                            type={activeTab}
+                                            data={item}
+                                            onDelete={handleDeleteClub}
+                                            onOverride={(m) => { setSelectedMatch(m); setShowOverrideResult(true); }}
+                                            onResolve={(d) => { setSelectedDispute(d); setShowResolveDispute(true); }}
+                                        />
+                                    </motion.div>
+                                ))}
+                            </AnimatePresence>
+                        </motion.div>
+                        {filteredData().length === 0 && (
+                            <div className="py-20 text-center">
+                                <Search size={48} className="mx-auto text-text-tertiary mb-4 opacity-20" />
+                                <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">No matching data identified in sector</p>
+                            </div>
+                        )}
                     </div>
-                </div>
-                {/* Tabs */}
-                <div className="flex gap-2 mb-8 overflow-x-auto pb-2">
-                    {tabs.map(tab => {
-                        const Icon = tab.icon;
-                        return (
-                            <button
-                                key={tab.id}
-                                onClick={() => setActiveTab(tab.id)}
-                                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all whitespace-nowrap ${activeTab === tab.id
-                                    ? 'bg-padel-green text-white shadow-lg shadow-padel-green/30'
-                                    : 'bg-white border border-light-border text-text-secondary hover:border-padel-green'
-                                    }`}
-                            >
-                                <Icon className="w-4 h-4" />
-                                {tab.label}
-                            </button>
-                        );
-                    })}
-                </div>
-
-                {/* Content area with bottom margin for breathing room */}
-                <div className="bg-white rounded-3xl p-8 border border-light-border shadow-lg mb-20 min-h-[60vh]">
-                    {loading ? (
-                        <div className="flex items-center justify-center py-20">
-                            <motion.div
-                                animate={{ rotate: 360 }}
-                                transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-                                className="w-12 h-12 border-4 border-padel-green border-t-transparent rounded-full"
-                            />
-                        </div>
-                    ) : (
-                        <>
-                            {/* Statistics Tab */}
-                            {activeTab === 'stats' && stats && (
-                                <div className="space-y-6">
-                                    <h2 className="text-2xl font-black text-text-primary mb-6">Platform Statistics</h2>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                                        <StatCard label="Total Clubs" value={stats.totalClubs} color="blue" />
-                                        <StatCard label="Total Teams" value={stats.totalTeams} color="green" />
-                                        <StatCard label="Active Teams" value={stats.activeTeams} color="emerald" />
-                                        <StatCard label="Total Matches" value={stats.totalMatches} color="purple" />
-                                        <StatCard label="Active Matches" value={stats.activeMatches} color="orange" />
-                                        <StatCard label="Total Disputes" value={stats.totalDisputes} color="red" />
-                                        <StatCard label="Pending Disputes" value={stats.pendingDisputes} color="amber" />
-                                        <StatCard label="Total Users" value={stats.totalUsers} color="indigo" />
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Clubs Tab */}
-                            {activeTab === 'clubs' && (
-                                <div className="space-y-6">
-                                    <div className="flex justify-between items-center">
-                                        <h2 className="text-2xl font-black text-text-primary">Club Management</h2>
-                                        <Button onClick={() => setShowCreateClub(true)}>
-                                            <Plus className="w-4 h-4 mr-2" />
-                                            Create Club
-                                        </Button>
-                                    </div>
-                                    <div className="space-y-3">
-                                        {clubs.map(club => (
-                                            <div key={club._id} className="p-4 md:p-6 border border-light-border rounded-xl hover:border-padel-green transition-colors bg-light-surface/30">
-                                                <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
-                                                    <div className="min-w-0 flex-1">
-                                                        <h3 className="font-bold text-text-primary truncate">{club.name}</h3>
-                                                        <p className="text-sm text-text-secondary flex items-center gap-2">
-                                                            <Building2 size={12} />
-                                                            {club.location}
-                                                        </p>
-                                                        {club.phone_number && (
-                                                            <p className="text-xs text-text-tertiary mt-1 font-medium">{club.phone_number}</p>
-                                                        )}
-                                                    </div>
-                                                    <div className="flex gap-2 w-full sm:w-auto">
-                                                        <Button variant="outline" size="sm" onClick={() => setEditingClub(club)} className="flex-1 sm:flex-initial">
-                                                            <Edit className="w-3" />
-                                                        </Button>
-                                                        <Button variant="danger" size="sm" onClick={() => handleDeleteClub(club._id)} className="flex-1 sm:flex-initial">
-                                                            <Trash2 className="w-3" />
-                                                        </Button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Teams Tab */}
-                            {activeTab === 'teams' && (
-                                <div className="space-y-6">
-                                    <div className="flex justify-between items-center">
-                                        <h2 className="text-2xl font-black text-text-primary uppercase italic">Active Squads</h2>
-                                        <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-                                            <Input
-                                                placeholder="Search squads..."
-                                                value={searchTerm}
-                                                onChange={(e) => setSearchTerm(e.target.value)}
-                                                className="w-full sm:w-64"
-                                            />
-                                            <Button variant="danger" onClick={handleRemoveInactive} className="w-full sm:w-auto">
-                                                Purge Inactive
-                                            </Button>
-                                        </div>
-                                    </div>
-                                    <div className="space-y-3">
-                                        {teams.filter(t =>
-                                            t.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                            t.captain_id?.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
-                                        ).map(team => (
-                                            <div key={team._id} className="p-4 md:p-6 border border-light-border rounded-xl hover:border-padel-green transition-colors bg-light-surface/30">
-                                                <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
-                                                    <div className="min-w-0 flex-1">
-                                                        <h3 className="font-bold text-text-primary truncate">{team.name}</h3>
-                                                        <p className="text-sm text-text-secondary mb-2">
-                                                            Captain: {team.captain_id?.full_name || 'N/A'}
-                                                        </p>
-                                                        <div className="flex flex-wrap items-center gap-2 md:gap-3">
-                                                            <span className={`px-2 py-1 rounded-lg text-[10px] md:text-xs font-bold ${team.status === 'INACTIVE' ? 'bg-red-100 text-red-700' :
-                                                                team.status === 'AVAILABLE' ? 'bg-green-100 text-green-700' :
-                                                                    'bg-blue-100 text-blue-700'
-                                                                }`}>
-                                                                {team.status}
-                                                            </span>
-                                                            <span className="text-[10px] md:text-xs text-text-tertiary font-bold uppercase tracking-widest">{team.points || 0} PTS</span>
-                                                        </div>
-                                                    </div>
-                                                    <Button
-                                                        variant={team.status === 'INACTIVE' ? 'primary' : 'danger'}
-                                                        size="sm"
-                                                        onClick={() => handleToggleTeam(team._id)}
-                                                        className="w-full sm:w-auto"
-                                                    >
-                                                        {team.status === 'INACTIVE' ? 'Enable' : 'Disable'}
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Matches Tab */}
-                            {activeTab === 'matches' && (
-                                <div className="space-y-6">
-                                    <div className="flex justify-between items-center">
-                                        <h2 className="text-2xl font-black text-text-primary uppercase italic">Intelligence Archive</h2>
-                                        <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-                                            <Input
-                                                placeholder="Search callsigns..."
-                                                value={searchTerm}
-                                                onChange={(e) => setSearchTerm(e.target.value)}
-                                                className="w-full sm:w-64"
-                                            />
-                                            <Button onClick={() => setShowForceMatch(true)} className="w-full sm:w-auto">
-                                                <Plus className="w-4 h-4 mr-2" />
-                                                Force Entry
-                                            </Button>
-                                        </div>
-                                    </div>
-                                    <div className="space-y-3">
-                                        {matches.filter(m =>
-                                            m.team_a_id?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                            m.team_b_id?.name?.toLowerCase().includes(searchTerm.toLowerCase())
-                                        ).map(match => (
-                                            <div key={match._id} className="p-4 md:p-6 border border-light-border rounded-xl hover:border-padel-green transition-colors bg-light-surface/30">
-                                                <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
-                                                    <div className="min-w-0 flex-1">
-                                                        <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-3">
-                                                            <span className="font-bold text-text-primary text-sm md:text-base">
-                                                                {match.team_a_id?.name || 'Team A'}
-                                                            </span>
-                                                            <span className="text-padel-green font-black italic text-xs">VS</span>
-                                                            <span className="font-bold text-text-primary text-sm md:text-base">
-                                                                {match.team_b_id?.name || 'Team B'}
-                                                            </span>
-                                                        </div>
-                                                        <div className="flex flex-wrap items-center gap-3">
-                                                            <span className={`px-2 py-1 rounded-lg text-[10px] md:text-xs font-bold ${match.status === 'PROPOSED' ? 'bg-amber-100 text-amber-700' :
-                                                                match.status === 'ACCEPTED' ? 'bg-padel-blue/10 text-padel-blue' :
-                                                                    match.status === 'SCHEDULED' ? 'bg-padel-green/10 text-padel-green' :
-                                                                        match.status === 'AWAITING_CONFIRMATION' ? 'bg-purple-100 text-purple-700' :
-                                                                            match.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
-                                                                                'bg-red-100 text-red-700'
-                                                                }`}>
-                                                                {match.status}
-                                                            </span>
-                                                            {match.score && (
-                                                                <span className="text-[10px] md:text-xs text-text-tertiary font-bold">{match.score}</span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex gap-2 w-full sm:w-auto">
-                                                        <Button variant="outline" size="sm" onClick={() => {
-                                                            setSelectedMatch(match);
-                                                            setShowOverrideResult(true);
-                                                        }} className="flex-1 sm:flex-initial">
-                                                            <Edit className="w-3 h-3 md:mr-2" />
-                                                            <span className="hidden md:inline">Edit</span>
-                                                        </Button>
-                                                        <Button variant="danger" size="sm" onClick={() => handleDeleteMatch(match._id)} className="flex-1 sm:flex-initial">
-                                                            <Trash2 className="w-3 h-3 md:mr-2" />
-                                                            <span className="hidden md:inline">Delete</span>
-                                                        </Button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Disputes Tab */}
-                            {activeTab === 'disputes' && (
-                                <div className="space-y-6">
-                                    <h2 className="text-2xl font-black text-text-primary">Dispute Resolution</h2>
-                                    <div className="space-y-3">
-                                        {disputes.length === 0 ? (
-                                            <p className="text-center text-text-tertiary py-10">No disputes to review</p>
-                                        ) : (
-                                            disputes.map(dispute => (
-                                                <div key={dispute._id} className="p-4 md:p-6 border-2 border-amber-200 bg-amber-50 rounded-2xl shadow-sm">
-                                                    <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-4">
-                                                        <div>
-                                                            <h3 className="font-bold text-text-primary text-sm md:text-base">
-                                                                {dispute.match_id?.team_a_id?.name} <span className="text-padel-green italic">VS</span> {dispute.match_id?.team_b_id?.name}
-                                                            </h3>
-                                                            <p className="text-xs text-text-tertiary mt-1 font-medium">
-                                                                Disputed by: {dispute.disputed_by?.full_name}
-                                                            </p>
-                                                        </div>
-                                                        <span className={`px-3 py-1 rounded-lg text-[10px] md:text-xs font-black uppercase tracking-widest ${dispute.status === 'PENDING' ? 'bg-amber-200 text-amber-800' :
-                                                            dispute.status === 'RESOLVED' ? 'bg-green-200 text-green-800' :
-                                                                'bg-red-200 text-red-800'
-                                                            }`}>
-                                                            {dispute.status}
-                                                        </span>
-                                                    </div>
-                                                    <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 mb-4 border border-amber-100">
-                                                        <p className="text-xs md:text-sm text-text-secondary leading-relaxed"><strong>Tactical Report:</strong> {dispute.reason}</p>
-                                                    </div>
-                                                    {dispute.status === 'PENDING' && (
-                                                        <Button
-                                                            size="sm"
-                                                            onClick={() => {
-                                                                setSelectedDispute(dispute);
-                                                                setShowResolveDispute(true);
-                                                            }}
-                                                            className="w-full sm:w-auto"
-                                                        >
-                                                            Resolve Dispute
-                                                        </Button>
-                                                    )}
-                                                    {dispute.status === 'RESOLVED' && (
-                                                        <div className="bg-green-50/50 border border-green-200 rounded-xl p-4">
-                                                            <p className="text-xs text-green-800">
-                                                                <strong>Outcome:</strong> {dispute.resolution}
-                                                            </p>
-                                                            {dispute.admin_notes && (
-                                                                <p className="text-[10px] text-green-700 mt-2 font-medium">
-                                                                    <strong>Intelligence Notes:</strong> {dispute.admin_notes}
-                                                                </p>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ))
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-                        </>
-                    )}
                 </div>
             </main>
 
-            {/* Modals */}
-            <CreateClubModal
-                show={showCreateClub || !!editingClub}
-                onClose={() => { setShowCreateClub(false); setEditingClub(null); }}
-                onSuccess={fetchData}
-                club={editingClub}
-            />
-            <ForceMatchModal show={showForceMatch} onClose={() => setShowForceMatch(false)} onSuccess={fetchData} teams={teams} />
-            <ResolveDisputeModal
-                show={showResolveDispute}
-                onClose={() => { setShowResolveDispute(false); setSelectedDispute(null); }}
-                onSuccess={fetchData}
-                dispute={selectedDispute}
-            />
-            <OverrideResultModal
-                show={showOverrideResult}
-                onClose={() => { setShowOverrideResult(false); setSelectedMatch(null); }}
-                onSuccess={fetchData}
-                match={selectedMatch}
-            />
+            {/* Admin Modals */}
+            <AdminModal isOpen={showCreateClub} onClose={() => setShowCreateClub(false)} title="Establish New Node">
+                <form onSubmit={handleCreateClub} className="space-y-6">
+                    <Input label="Callsign (Name)" value={newClub.name} onChange={(e) => setNewClub({ ...newClub, name: e.target.value })} required />
+                    <Input label="Sector (Location)" value={newClub.location} onChange={(e) => setNewClub({ ...newClub, location: e.target.value })} required />
+                    <Button type="submit" className="w-full py-4">Initialize Node</Button>
+                </form>
+            </AdminModal>
+
+            <AdminModal isOpen={showForceMatch} onClose={() => setShowForceMatch(false)} title="Force Operational Link">
+                <form onSubmit={handleForceMatch} className="space-y-4">
+                    <Input label="Target Squad A ID" value={forceMatchData.teamA} onChange={(e) => setForceMatchData({ ...forceMatchData, teamA: e.target.value })} required />
+                    <Input label="Target Squad B ID" value={forceMatchData.teamB} onChange={(e) => setForceMatchData({ ...forceMatchData, teamB: e.target.value })} required />
+                    <Input label="Combat Sector (Club ID)" value={forceMatchData.club} onChange={(e) => setForceMatchData({ ...forceMatchData, club: e.target.value })} required />
+                    <select
+                        className="w-full bg-light-surface border border-light-border rounded-xl px-4 py-3 text-xs font-bold focus:border-padel-blue outline-none"
+                        value={forceMatchData.mode}
+                        onChange={(e) => setForceMatchData({ ...forceMatchData, mode: e.target.value })}
+                    >
+                        <option value="COMPETITIVE">COMPETITIVE</option>
+                        <option value="FRIENDLY">FRIENDLY</option>
+                    </select>
+                    <Button type="submit" className="w-full py-4">Initiate Override</Button>
+                </form>
+            </AdminModal>
+
+            <AdminModal isOpen={showResolveDispute} onClose={() => setShowResolveDispute(false)} title="Resolve Intel Conflict">
+                <form onSubmit={handleResolveDispute} className="space-y-4">
+                    <p className="text-[10px] text-text-tertiary font-bold mb-4">Conflict: {selectedDispute?.match_id?.team_a_id?.name} vs {selectedDispute?.match_id?.team_b_id?.name}</p>
+                    <Input label="Victory Party ID" value={resolveData.winner} onChange={(e) => setResolveData({ ...resolveData, winner: e.target.value })} required />
+                    <Input label="Verified Scorecard" value={resolveData.score} onChange={(e) => setResolveData({ ...resolveData, score: e.target.value })} required />
+                    <Button type="submit" className="w-full py-4 bg-padel-blue text-white font-black">Finalize Resolution</Button>
+                </form>
+            </AdminModal>
+
+            <AdminModal isOpen={showOverrideResult} onClose={() => setShowOverrideResult(false)} title="Reality Correction">
+                <form onSubmit={handleOverrideResult} className="space-y-4">
+                    <Input label="New Victory Party ID" value={overrideData.winner} onChange={(e) => setOverrideData({ ...overrideData, winner: e.target.value })} required />
+                    <Input label="Adjusted Scorecard" value={overrideData.score} onChange={(e) => setOverrideData({ ...overrideData, score: e.target.value })} required />
+                    <Button type="submit" className="w-full py-4 bg-padel-blue text-white font-black">Commit Calibration</Button>
+                </form>
+            </AdminModal>
         </div>
     );
 };
 
-// Stat Card Component
-const StatCard = ({ label, value, color }) => {
-    const colors = {
-        blue: 'from-blue-500 to-blue-600',
-        green: 'from-green-500 to-green-600',
-        emerald: 'from-emerald-500 to-emerald-600',
-        purple: 'from-purple-500 to-purple-600',
-        orange: 'from-orange-500 to-orange-600',
-        red: 'from-red-500 to-red-600',
-        amber: 'from-amber-500 to-amber-600',
-        indigo: 'from-indigo-500 to-indigo-600'
-    };
+// Simplified UI Helpers
+const QuickStat = ({ label, value, pulse }) => (
+    <div className="bg-white p-4 md:p-6 rounded-[1.5rem] border border-light-border shadow-lg flex-1 min-w-[120px] transition-transform hover:-translate-y-1 glass-card">
+        <div className="flex items-center justify-between mb-2">
+            <span className="text-[8px] md:text-[10px] font-black uppercase tracking-widest text-text-tertiary">{label}</span>
+            {pulse && <span className="flex h-2 w-2 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+            </span>}
+        </div>
+        <span className={`text-2xl md:text-3xl font-black italic tracking-tighter text-text-primary uppercase`}>{value}</span>
+    </div>
+);
 
-    return (
-        <div className={`bg-gradient-to-br ${colors[color]} rounded-2xl p-6 text-white shadow-lg`}>
-            <p className="text-sm opacity-90 mb-2">{label}</p>
-            <p className="text-4xl font-black">{value}</p>
+const TabButton = ({ active, onClick, icon, label }) => (
+    <button
+        onClick={onClick}
+        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${active ? 'bg-white text-padel-blue shadow-lg shadow-padel-blue/10 border border-light-border' : 'text-text-tertiary hover:text-text-primary'}`}
+    >
+        {icon} <span className="hidden sm:inline">{label}</span>
+    </button>
+);
+
+const DataCard = ({ type, data, onDelete, onOverride, onResolve }) => {
+    if (type === 'clubs') return (
+        <div className="bg-white p-6 rounded-3xl border border-light-border shadow-sm group hover:border-padel-blue transition-all">
+            <div className="flex justify-between items-start mb-4">
+                <div className="p-3 bg-padel-blue/10 rounded-xl text-padel-blue"><Layout size={20} /></div>
+                <button onClick={() => onDelete(data._id)} className="p-2 text-text-tertiary hover:text-rose-500 transition-colors"><Trash2 size={16} /></button>
+            </div>
+            <h5 className="text-sm font-black uppercase text-text-primary mb-1">{data.name}</h5>
+            <p className="text-[10px] text-text-tertiary font-bold tracking-widest mb-4 flex items-center gap-1"><Search size={10} /> {data.location}</p>
+            <div className="pt-4 border-t border-light-border flex items-center justify-between">
+                <span className="text-[8px] font-black uppercase text-text-tertiary tracking-[0.2em]">Live Node</span>
+                <ChevronRight size={14} className="text-padel-blue opacity-0 group-hover:opacity-100 transition-opacity" />
+            </div>
         </div>
     );
-};
 
-// Create Club Modal
-const CreateClubModal = ({ show, onClose, onSuccess, club }) => {
-    const [formData, setFormData] = useState({ name: '', location: '', phone_number: '' });
-    const [isLoading, setIsLoading] = useState(false);
-
-    useEffect(() => {
-        if (club) {
-            setFormData({
-                name: club.name || '',
-                location: club.location || '',
-                phone_number: club.phone_number || ''
-            });
-        } else {
-            setFormData({ name: '', location: '', phone_number: '' });
-        }
-    }, [club, show]);
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setIsLoading(true);
-        try {
-            if (club) {
-                await api.put(`/admin/clubs/${club._id}`, formData);
-                toast.success('Club updated successfully');
-            } else {
-                await api.post('/admin/clubs', formData);
-                toast.success('Club created successfully');
-            }
-            onSuccess();
-            onClose();
-        } catch (error) {
-            toast.error(error.response?.data?.message || 'Failed to save club');
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    if (!show) return null;
-
-    return (
-        <>
-            <div className="fixed inset-0 bg-black/60 z-40 backdrop-blur-md" onClick={onClose} />
-            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-3xl shadow-2xl p-6 md:p-8 w-[95%] max-w-md border border-light-border max-h-[90vh] overflow-y-auto">
-                <h3 className="text-xl font-black text-text-primary mb-4">{club ? 'Edit Club' : 'Create New Club'}</h3>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <Input
-                        label="Club Name"
-                        value={formData.name}
-                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        required
-                    />
-                    <Input
-                        label="Location"
-                        value={formData.location}
-                        onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                        required
-                    />
-                    <Input
-                        label="Phone Number"
-                        value={formData.phone_number}
-                        onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
-                    />
-                    <div className="flex gap-3 pt-2">
-                        <Button variant="secondary" onClick={onClose} className="flex-1">Cancel</Button>
-                        <Button type="submit" isLoading={isLoading} className="flex-1">{club ? 'Save Changes' : 'Create'}</Button>
-                    </div>
-                </form>
+    if (type === 'teams') return (
+        <div className="bg-white p-6 rounded-3xl border border-light-border shadow-sm group hover:border-padel-blue transition-all">
+            <div className="flex justify-between items-start mb-4">
+                <div className="p-3 bg-sky-500/10 rounded-xl text-sky-500"><Users size={20} /></div>
+                <div className="text-[8px] font-black px-2 py-1 bg-light-surface border border-light-border rounded-full text-text-tertiary">{data.points} PTS</div>
             </div>
-        </>
-    );
-};
-
-// Force Match Modal
-const ForceMatchModal = ({ show, onClose, onSuccess, teams }) => {
-    const [teamA, setTeamA] = useState('');
-    const [teamB, setTeamB] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        if (teamA === teamB) {
-            toast.error('Please select different teams');
-            return;
-        }
-        setIsLoading(true);
-        try {
-            await api.post('/admin/matches/force-create', { team_a_id: teamA, team_b_id: teamB });
-            toast.success('Match created successfully');
-            onSuccess();
-            onClose();
-        } catch (error) {
-            toast.error(error.response?.data?.message || 'Failed to create match');
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    if (!show) return null;
-
-    return (
-        <>
-            <div className="fixed inset-0 bg-black/60 z-40 backdrop-blur-md" onClick={onClose} />
-            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-3xl shadow-2xl p-6 md:p-8 w-[95%] max-w-md border border-light-border max-h-[90vh] overflow-y-auto">
-                <h3 className="text-xl font-black text-text-primary mb-4">Force Create Match</h3>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                        <label className="text-sm font-semibold text-text-secondary block mb-2">Team A</label>
-                        <select
-                            value={teamA}
-                            onChange={(e) => setTeamA(e.target.value)}
-                            className="w-full px-4 py-2.5 bg-white border border-light-border rounded-xl text-text-primary focus:border-padel-green focus:ring-2 focus:ring-padel-green/20"
-                            required
-                        >
-                            <option value="">Select team...</option>
-                            {teams.filter(t => t.status !== 'INACTIVE').map(t => (
-                                <option key={t._id} value={t._id}>{t.name} ({t.points || 0} pts)</option>
-                            ))}
-                        </select>
-                    </div>
-                    <div>
-                        <label className="text-sm font-semibold text-text-secondary block mb-2">Team B</label>
-                        <select
-                            value={teamB}
-                            onChange={(e) => setTeamB(e.target.value)}
-                            className="w-full px-4 py-2.5 bg-white border border-light-border rounded-xl text-text-primary focus:border-padel-green focus:ring-2 focus:ring-padel-green/20"
-                            required
-                        >
-                            <option value="">Select team...</option>
-                            {teams.filter(t => t.status !== 'INACTIVE' && t._id !== teamA).map(t => (
-                                <option key={t._id} value={t._id}>{t.name} ({t.points || 0} pts)</option>
-                            ))}
-                        </select>
-                    </div>
-                    <div className="flex gap-3 pt-2">
-                        <Button variant="secondary" onClick={onClose} className="flex-1">Cancel</Button>
-                        <Button type="submit" isLoading={isLoading} className="flex-1">Create Match</Button>
-                    </div>
-                </form>
-            </div>
-        </>
-    );
-};
-
-// Resolve Dispute Modal
-const ResolveDisputeModal = ({ show, onClose, onSuccess, dispute }) => {
-    const [resolution, setResolution] = useState('UPHOLD_ORIGINAL');
-    const [adminNotes, setAdminNotes] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setIsLoading(true);
-        try {
-            await api.put(`/admin/disputes/${dispute._id}/resolve`, {
-                resolution,
-                admin_notes: adminNotes
-            });
-            toast.success('Dispute resolved');
-            onSuccess();
-            onClose();
-        } catch (error) {
-            toast.error('Failed to resolve dispute');
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    if (!show || !dispute) return null;
-
-    return (
-        <>
-            <div className="fixed inset-0 bg-black/60 z-40 backdrop-blur-md" onClick={onClose} />
-            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-3xl shadow-2xl p-6 md:p-8 w-[95%] max-w-md border border-light-border max-h-[90vh] overflow-y-auto">
-                <h3 className="text-xl font-black text-text-primary mb-4">Resolve Dispute</h3>
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
-                    <p className="text-sm text-amber-900"><strong>Reason:</strong> {dispute.reason}</p>
+            <h5 className="text-sm font-black uppercase text-text-primary mb-1">{data.name}</h5>
+            <p className="text-[10px] text-text-tertiary font-mono mb-4 break-all">ID: {data._id}</p>
+            <div className="pt-4 border-t border-light-border flex items-center gap-4">
+                <div className="flex -space-x-2">
+                    <div className="w-6 h-6 rounded-full bg-slate-200 border-2 border-white" />
+                    <div className="w-6 h-6 rounded-full bg-slate-300 border-2 border-white" />
                 </div>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                        <label className="text-sm font-semibold text-text-secondary block mb-2">Resolution</label>
-                        <select
-                            value={resolution}
-                            onChange={(e) => setResolution(e.target.value)}
-                            className="w-full px-4 py-2.5 bg-white border border-light-border rounded-xl text-text-primary"
-                        >
-                            <option value="UPHOLD_ORIGINAL">Uphold Original Result</option>
-                            <option value="REVERSE_RESULT">Reverse Result</option>
-                            <option value="VOID_MATCH">Void Match</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label className="text-sm font-semibold text-text-secondary block mb-2">Admin Notes</label>
-                        <textarea
-                            value={adminNotes}
-                            onChange={(e) => setAdminNotes(e.target.value)}
-                            rows={3}
-                            className="w-full px-4 py-2.5 bg-white border border-light-border rounded-xl text-text-primary resize-none"
-                            placeholder="Add explanation for resolution..."
-                        />
-                    </div>
-                    <div className="flex gap-3 pt-2">
-                        <Button variant="secondary" onClick={onClose} className="flex-1">Cancel</Button>
-                        <Button type="submit" isLoading={isLoading} className="flex-1">Resolve</Button>
-                    </div>
-                </form>
+                <span className="text-[8px] font-black uppercase text-text-tertiary tracking-widest">Squad Active</span>
             </div>
-        </>
+        </div>
+    );
+
+    if (type === 'matches') return (
+        <div className="bg-white p-6 rounded-3xl border border-light-border shadow-sm group hover:border-padel-blue transition-all">
+            <div className="flex justify-between items-start mb-4">
+                <div className="p-2 px-3 bg-emerald-100 text-emerald-700 text-[8px] font-black rounded-lg transform -rotate-1 italic uppercase tracking-widest">{data.status}</div>
+                <button onClick={() => onOverride(data)} className="p-2 text-text-tertiary hover:text-padel-blue transition-colors"><Settings size={16} /></button>
+            </div>
+            <div className="flex items-center justify-between gap-2 mb-4">
+                <div className="text-center flex-1">
+                    <p className="text-[10px] font-black uppercase text-text-primary truncate">{data.team_a_id?.name || '---'}</p>
+                    <p className="text-[8px] text-text-tertiary uppercase">Home</p>
+                </div>
+                <div className="text-emerald-500 font-black italic">VS</div>
+                <div className="text-center flex-1">
+                    <p className="text-[10px] font-black uppercase text-text-primary truncate">{data.team_b_id?.name || '---'}</p>
+                    <p className="text-[8px] text-text-tertiary uppercase">Away</p>
+                </div>
+            </div>
+            <div className="pt-4 border-t border-light-border flex justify-between items-center text-[8px] font-bold text-text-tertiary uppercase tracking-widest">
+                <span>{data.mode} OPS</span>
+                <span>{new Date(data.createdAt).toLocaleDateString()}</span>
+            </div>
+        </div>
+    );
+
+    if (type === 'disputes') return (
+        <div className="bg-white p-6 rounded-3xl border border-rose-100 shadow-sm shadow-rose-500/5 group hover:border-rose-500 transition-all">
+            <div className="flex justify-between items-start mb-4">
+                <div className="p-3 bg-rose-500/10 rounded-xl text-rose-500 animate-pulse"><AlertCircle size={20} /></div>
+                <button onClick={() => onResolve(data)} className="px-4 py-2 bg-rose-500 text-white text-[8px] font-black rounded-lg uppercase tracking-widest hover:bg-rose-600 transition-colors">Action</button>
+            </div>
+            <h5 className="text-sm font-black uppercase text-text-primary mb-1">INTEL CONFLICT</h5>
+            <p className="text-[10px] text-text-tertiary font-medium mb-4">{data.reason}</p>
+            <div className="bg-rose-50 p-3 rounded-xl border border-rose-100">
+                <div className="flex justify-between text-[8px] font-bold text-rose-700 uppercase">
+                    <span>{data.match_id?.team_a_id?.name}</span>
+                    <span>VS</span>
+                    <span>{data.match_id?.team_b_id?.name}</span>
+                </div>
+            </div>
+        </div>
     );
 };
 
-// Override Result Modal
-const OverrideResultModal = ({ show, onClose, onSuccess, match }) => {
-    const [result, setResult] = useState('WIN');
-    const [score, setScore] = useState('');
-    const [reason, setReason] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
-
-    useEffect(() => {
-        if (match) {
-            setResult(match.result || 'WIN');
-            setScore(match.score || '');
-        }
-    }, [match, show]);
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setIsLoading(true);
-        try {
-            await api.put(`/admin/matches/${match._id}/override`, {
-                result,
-                score,
-                reason
-            });
-            toast.success('Match result overridden');
-            onSuccess();
-            onClose();
-        } catch (error) {
-            toast.error('Failed to override result');
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    if (!show || !match) return null;
-
-    return (
-        <>
-            <div className="fixed inset-0 bg-black/30 z-40 backdrop-blur-sm" onClick={onClose} />
-            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md border border-light-border">
-                <h3 className="text-xl font-black text-text-primary mb-2">Override Match Result</h3>
-                <p className="text-xs text-text-tertiary mb-6 uppercase font-bold tracking-widest italic">
-                    {match.team_a_id?.name} vs {match.team_b_id?.name}
-                </p>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                        <label className="text-sm font-semibold text-text-secondary block mb-2">Winner (relative to {match.team_a_id?.name})</label>
-                        <select
-                            value={result}
-                            onChange={(e) => setResult(e.target.value)}
-                            className="w-full px-4 py-2.5 bg-white border border-light-border rounded-xl text-text-primary"
-                        >
-                            <option value="WIN">Team A Victory</option>
-                            <option value="LOSS">Team B Victory</option>
-                        </select>
+const AdminModal = ({ isOpen, onClose, title, children }) => (
+    <AnimatePresence>
+        {isOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={onClose}
+                    className="absolute inset-0 bg-text-primary/60 backdrop-blur-md"
+                />
+                <motion.div
+                    initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                    animate={{ scale: 1, opacity: 1, y: 0 }}
+                    exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                    className="relative bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden glass-card p-8 md:p-10"
+                >
+                    <div className="flex items-center gap-3 mb-8">
+                        <div className="w-10 h-10 bg-padel-blue rounded-xl flex items-center justify-center text-white shadow-lg shadow-padel-blue/20">
+                            <Settings size={20} />
+                        </div>
+                        <h3 className="text-sm md:text-base font-black uppercase italic tracking-tighter text-text-primary">{title}</h3>
                     </div>
-                    <Input
-                        label="Final Score"
-                        value={score}
-                        onChange={(e) => setScore(e.target.value)}
-                        placeholder="6-4, 6-4"
-                        required
-                    />
-                    <div>
-                        <label className="text-sm font-semibold text-text-secondary block mb-2">Override Reason</label>
-                        <textarea
-                            value={reason}
-                            onChange={(e) => setReason(e.target.value)}
-                            rows={2}
-                            className="w-full px-4 py-2.5 bg-white border border-light-border rounded-xl text-text-primary resize-none"
-                            placeholder="Why are you overriding this result?"
-                        />
-                    </div>
-                    <div className="flex gap-3 pt-2">
-                        <Button variant="secondary" onClick={onClose} className="flex-1">Cancel</Button>
-                        <Button type="submit" isLoading={isLoading} className="flex-1">Apply Override</Button>
-                    </div>
-                </form>
+                    {children}
+                </motion.div>
             </div>
-        </>
-    );
-};
+        )}
+    </AnimatePresence>
+);
 
 export default AdminDashboard;

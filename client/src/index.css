@@ -4,6 +4,56 @@
 
 @layer base {
   body {
-    @apply bg-light-bg text-text-primary antialiased;
+    @apply bg-light-bg text-text-primary antialiased selection:bg-padel-blue selection:text-white;
+  }
+
+  /* Custom Premium Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-text-tertiary/20 rounded-full hover:bg-padel-blue/40 transition-colors;
+  }
+}
+
+@layer utilities {
+  .tactical-grid {
+    background-image: radial-gradient(circle at 1px 1px, rgba(15, 23, 42, 0.05) 1px, transparent 0);
+    background-size: 24px 24px;
+  }
+
+  .glass-card {
+    @apply bg-white/70 backdrop-blur-xl border border-white/20;
+    box-shadow: 0 8px 32px 0 rgba(15, 23, 42, 0.08);
+  }
+
+  .glow-green:hover {
+    box-shadow: 0 0 20px rgba(156, 231, 18, 0.15);
+  }
+
+  .glow-blue:hover {
+    box-shadow: 0 0 20px rgba(0, 153, 255, 0.15);
+  }
+
+  .animate-pulse-slow {
+    animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  @keyframes pulse {
+
+    0%,
+    100% {
+      opacity: 1;
+    }
+
+    50% {
+      opacity: .5;
+    }
   }
 }
