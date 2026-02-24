@@ -8,10 +8,15 @@ const User = require('../models/User');
  * Based on PDF specification rules
  */
 const isTeamEligible = (team, teamsWithDisputes = [], options = { isFriendly: false }) => {
-    // Rule 1: Team has 2 confirmed players
-    if (!team.player_2_id) return { eligible: false, reason: 'Partner required' };
+    const teamType = team.type || '2v2';
+    const teamMode = team.mode || 'COMPETITIVE';
+
+    // Rule 1: Team has 2 confirmed players (Bypass for Friendly 1v1)
+    if (teamType === '2v2' && !team.player_2_id) return { eligible: false, reason: 'Partner required' };
+    if (teamMode === 'COMPETITIVE' && !team.player_2_id) return { eligible: false, reason: 'Partner required' };
 
     // Rule 2: Team has a unique team name (handled by schema validation)
+    // For Friendly mode, name is auto-generated if blank
     if (!team.name || team.name.trim() === '') return { eligible: false, reason: 'Team name required' };
 
     // Rule 3: Not currently in an active match
@@ -101,8 +106,15 @@ const findBestOpponent = async (team, options = { isFriendly: false, experienceO
             _id: { $ne: team._id },
             club_id: team.club_id,
             status: options.isFriendly ? { $in: ['AVAILABLE', 'COOLDOWN'] } : 'AVAILABLE',
-            player_2_id: { $exists: true, $ne: null }
+            mode: team.mode || 'COMPETITIVE',
+            type: team.type || '2v2'
         };
+
+        // If 2v2, must have player_2_id
+        if (team.type === '2v2') {
+            baseFilter.player_2_id = { $exists: true, $ne: null };
+        }
+
         if (disputedTeamIds.length > 0) {
             baseFilter._id = { ...baseFilter._id, $nin: disputedTeamIds };
         }

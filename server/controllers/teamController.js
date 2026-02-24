@@ -6,8 +6,26 @@ const crypto = require('crypto');
 // @route   POST /api/teams
 // @access  Private (Captain)
 const createTeam = async (req, res) => {
-    const { name, experience_level } = req.body;
+    let { name, experience_level, mode, type } = req.body;
     const club_id = req.user.club_id;
+
+    mode = mode || 'COMPETITIVE';
+    type = type || '2v2';
+
+    // Competitive is 2v2 only
+    if (mode === 'COMPETITIVE') {
+        type = '2v2';
+    }
+
+    // For Friendly mode, name is optional and can be auto-generated
+    if (mode === 'FRIENDLY' && (!name || name.trim() === '')) {
+        const timestamp = Date.now().toString().slice(-6);
+        name = `Friendly-${type}-${req.user.full_name.split(' ')[0]}-${timestamp}`;
+    }
+
+    if (!name || name.trim() === '') {
+        return res.status(400).json({ message: 'Team name is required for Competitive mode.' });
+    }
 
     // Validate experience_level
     const validLevels = ['0-1 Months', '2-4 Months', '5-9 Months', '10+ Months'];
@@ -28,8 +46,10 @@ const createTeam = async (req, res) => {
             club_id,
             name,
             experience_level,
+            mode,
+            type,
             captain_id: req.user._id,
-            status: 'PENDING_PARTNER'
+            status: (mode === 'FRIENDLY' && type === '1v1') ? 'AVAILABLE' : 'PENDING_PARTNER'
         });
         res.status(201).json(team);
     } catch (err) {
@@ -56,6 +76,11 @@ const invitePartner = async (req, res) => {
 
         if (teamCheck.captain_id.toString() !== captainId.toString()) {
             return res.status(401).json({ message: 'Not authorized' });
+        }
+
+        // 1v1 teams do not need partners
+        if (teamCheck.type === '1v1') {
+            return res.status(400).json({ message: '1v1 teams do not require partners.' });
         }
 
         // Generate Invite Token
@@ -210,7 +235,8 @@ const getLeagueTable = async (req, res) => {
     try {
         const teams = await Team.find({
             club_id: clubId,
-            status: { $ne: 'INACTIVE' }
+            status: { $ne: 'INACTIVE' },
+            mode: 'COMPETITIVE'
         })
             .select('name points wins losses matches_played')
             .sort({ points: -1, wins: -1 }); // Sort by points desc, then wins

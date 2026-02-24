@@ -16,6 +16,17 @@ const TeamSchema = new mongoose.Schema({
     captain_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     player_2_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // Null until accepted
 
+    mode: {
+        type: String,
+        enum: ['COMPETITIVE', 'FRIENDLY'],
+        default: 'COMPETITIVE'
+    },
+    type: {
+        type: String,
+        enum: ['1v1', '2v2'],
+        default: '2v2'
+    },
+
     // Invite System
     invite_token: { type: String },
     invite_email: { type: String },

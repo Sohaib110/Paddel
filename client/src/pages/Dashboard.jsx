@@ -103,6 +103,8 @@ const Dashboard = () => {
     const [loading, setLoading] = useState(true);
     const [createTeamMode, setCreateTeamMode] = useState(false);
     const [teamName, setTeamName] = useState('');
+    const [createMode, setCreateMode] = useState('FRIENDLY');
+    const [createType, setCreateType] = useState('1v1');
     const [invitedToken, setInvitedToken] = useState('');
     const [activeMatch, setActiveMatch] = useState(null);
     const [submitMode, setSubmitMode] = useState(false);
@@ -138,12 +140,17 @@ const Dashboard = () => {
     const handleCreateTeam = async (e) => {
         e.preventDefault();
         try {
-            const { data } = await api.post('/teams', { name: teamName });
+            const { data } = await api.post('/teams', {
+                name: teamName,
+                mode: createMode,
+                type: createType,
+                experience_level: user?.experience_level || '0-1 Months'
+            });
             setTeam(data);
             setCreateTeamMode(false);
-            toast.success('Team created successfully!');
-        } catch {
-            toast.error('Failed to create team');
+            toast.success('Team initialized successfully!');
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to create team');
         }
     };
 
@@ -161,8 +168,9 @@ const Dashboard = () => {
 
     const handleFindMatch = async () => {
         try {
-            await api.post(`/matches/find/${team._id}?mode=${matchMode}&experience=${matchExperience}`);
-            toast.success(`${matchMode.toLowerCase()} match found! Check your notifications.`);
+            const mode = team.mode || 'COMPETITIVE';
+            await api.post(`/matches/find/${team._id}?mode=${mode}&experience=${matchExperience}`);
+            toast.success(`${mode.toLowerCase()} match found! Check your notifications.`);
             fetchData();
         } catch (err) {
             toast.error(err.response?.data?.message || 'Error finding match');
@@ -283,20 +291,77 @@ const Dashboard = () => {
                                 </div>
                             ) : (
                                 <div className="bg-white rounded-[3rem] p-12 border border-light-border shadow-2xl glass-card">
-                                    <h2 className="text-3xl font-black italic tracking-tighter text-text-primary uppercase mb-8 text-center">Team Identity</h2>
+                                    <h2 className="text-3xl font-black italic tracking-tighter text-text-primary uppercase mb-8 text-center">Infiltration Settings</h2>
                                     <form onSubmit={handleCreateTeam} className="space-y-6">
-                                        <Input
-                                            label="Faction Name"
-                                            value={teamName}
-                                            onChange={(e) => setTeamName(e.target.value)}
-                                            required
-                                            placeholder="Alpha Squad"
-                                        />
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-text-tertiary block mb-3 px-1">Engagement Mode</label>
+                                            <div className="flex p-1 bg-light-surface rounded-xl">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { setCreateMode('COMPETITIVE'); setCreateType('2v2'); }}
+                                                    className={`flex-1 py-3 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all ${createMode === 'COMPETITIVE' ? 'bg-white text-padel-blue shadow-sm' : 'text-text-tertiary hover:text-text-primary'}`}
+                                                >
+                                                    Competitive
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setCreateMode('FRIENDLY')}
+                                                    className={`flex-1 py-3 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all ${createMode === 'FRIENDLY' ? 'bg-white text-padel-blue shadow-sm' : 'text-text-tertiary hover:text-text-primary'}`}
+                                                >
+                                                    Friendly
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <AnimatePresence>
+                                            {createMode === 'FRIENDLY' && (
+                                                <motion.div
+                                                    initial={{ opacity: 0, height: 0 }}
+                                                    animate={{ opacity: 1, height: 'auto' }}
+                                                    exit={{ opacity: 0, height: 0 }}
+                                                    className="overflow-hidden"
+                                                >
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-text-tertiary block mb-3 px-1">Tactical Formation</label>
+                                                    <div className="flex p-1 bg-light-surface rounded-xl">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setCreateType('1v1')}
+                                                            className={`flex-1 py-3 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all ${createType === '1v1' ? 'bg-white text-padel-blue shadow-sm' : 'text-text-tertiary hover:text-text-primary'}`}
+                                                        >
+                                                            1v1 Solo
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setCreateType('2v2')}
+                                                            className={`flex-1 py-3 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all ${createType === '2v2' ? 'bg-white text-padel-blue shadow-sm' : 'text-text-tertiary hover:text-text-primary'}`}
+                                                        >
+                                                            2v2 Squad
+                                                        </button>
+                                                    </div>
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
+
+                                        <div>
+                                            <Input
+                                                label={createMode === 'COMPETITIVE' ? "Faction Name" : "Team Name (Optional)"}
+                                                value={teamName}
+                                                onChange={(e) => setTeamName(e.target.value)}
+                                                required={createMode === 'COMPETITIVE'}
+                                                placeholder={createMode === 'COMPETITIVE' ? "Alpha Squad" : "Leave blank for auto-gen"}
+                                            />
+                                            {createMode === 'FRIENDLY' && (
+                                                <p className="mt-2 text-[10px] text-text-tertiary italic pl-1">
+                                                    "Friendly ops do not require a formal designation."
+                                                </p>
+                                            )}
+                                        </div>
+
                                         <div className="flex gap-4 pt-4">
                                             <Button variant="secondary" onClick={() => setCreateTeamMode(false)} className="flex-1" size="md">
-                                                Cancel
+                                                Abstain
                                             </Button>
-                                            <Button type="submit" className="flex-1" size="md">Create</Button>
+                                            <Button type="submit" className="flex-1" size="md">Deploy</Button>
                                         </div>
                                     </form>
                                 </div>
@@ -324,8 +389,16 @@ const Dashboard = () => {
                                     {/* Team Status Card */}
                                     <div className="bg-white rounded-[2.5rem] border border-light-border shadow-xl overflow-hidden glass-card">
                                         <div className="bg-light-surface/50 p-6 md:p-8 border-b border-light-border">
-                                            <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-text-tertiary mb-1">Squad Profile</h3>
-                                            <h4 className="text-2xl font-black italic tracking-tighter text-text-primary uppercase">{team.name}</h4>
+                                            <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-text-tertiary mb-1">
+                                                {team.mode === 'FRIENDLY' ? 'Friendly Ops' : 'Squad Profile'}
+                                            </h3>
+                                            <h4 className="text-2xl font-black italic tracking-tighter text-text-primary uppercase">
+                                                {team.mode === 'FRIENDLY'
+                                                    ? (team.type === '1v1'
+                                                        ? user?.full_name
+                                                        : `${user?.full_name} & ${team.player_2_id?.full_name || 'Partner'}`)
+                                                    : team.name}
+                                            </h4>
                                         </div>
                                         <div className="p-6 md:p-8 space-y-6">
                                             <div className="flex items-center justify-between">
@@ -343,7 +416,7 @@ const Dashboard = () => {
                                                 <UnavailableToggle team={team} onUpdate={fetchData} />
                                             </div>
 
-                                            {!team.player_2_id && (
+                                            {team.type === '2v2' && !team.player_2_id && (
                                                 <div className="bg-amber-50/50 backdrop-blur-sm rounded-2xl p-4 md:p-5 border border-amber-100">
                                                     <p className="text-[10px] md:text-xs font-black uppercase tracking-widest text-amber-900 mb-2 md:mb-3 flex items-center gap-2">
                                                         <Search size={14} /> Recruitment Open
@@ -521,7 +594,7 @@ const Dashboard = () => {
                                     )}
 
                                     {/* Deploy Section (if no match) */}
-                                    {!activeMatch && team.player_2_id && team.status === 'AVAILABLE' && (
+                                    {!activeMatch && (team.type === '1v1' || team.player_2_id) && team.status === 'AVAILABLE' && (
                                         <div className="bg-white rounded-[2.5rem] p-6 md:p-8 border border-light-border shadow-xl text-center flex flex-col items-center group overflow-hidden relative glass-card">
                                             <div className="absolute inset-0 bg-padel-blue/5 opacity-0 group-hover:opacity-100 transition-opacity" />
                                             <div className="w-16 h-16 bg-light-surface rounded-[1.5rem] flex items-center justify-center mb-6 group-hover:scale-110 group-hover:rotate-3 transition-all">
@@ -531,18 +604,9 @@ const Dashboard = () => {
                                             <p className="text-xs text-text-tertiary font-medium mb-6">Infiltrate the matchmaking system to find suitable adversaries.</p>
 
                                             <div className="w-full flex p-1 bg-light-surface rounded-xl mb-6">
-                                                <button
-                                                    onClick={() => setMatchMode('COMPETITIVE')}
-                                                    className={`flex-1 py-2 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all ${matchMode === 'COMPETITIVE' ? 'bg-white text-padel-blue shadow-sm' : 'text-text-tertiary hover:text-text-primary'}`}
-                                                >
-                                                    Competitive
-                                                </button>
-                                                <button
-                                                    onClick={() => setMatchMode('FRIENDLY')}
-                                                    className={`flex-1 py-2 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all ${matchMode === 'FRIENDLY' ? 'bg-white text-padel-blue shadow-sm' : 'text-text-tertiary hover:text-text-primary'}`}
-                                                >
-                                                    Friendly
-                                                </button>
+                                                <div className="flex-1 py-2 text-[10px] font-black uppercase tracking-wider text-padel-blue bg-white rounded-lg shadow-sm">
+                                                    {team.mode || 'COMPETITIVE'} MODE {team.type || '2v2'}
+                                                </div>
                                             </div>
 
                                             <div className="w-full mb-6 text-left">
