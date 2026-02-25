@@ -27,11 +27,14 @@ const AcceptInvite = () => {
     }, [urlToken]);
 
     const handleAccept = async (manualToken) => {
-        const tokenToUse = manualToken || token;
-        if (!tokenToUse) {
+        let tokenToUse = manualToken || token;
+        if (!tokenToUse || typeof tokenToUse !== 'string') {
             toast.error('Token is required');
             return;
         }
+
+        // Normalize token to lowercase and trim whitespace
+        tokenToUse = tokenToUse.trim().toLowerCase();
 
         setStatus('PROCESSING');
         setLoading(true);

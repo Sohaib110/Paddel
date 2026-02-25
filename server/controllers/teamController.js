@@ -115,42 +115,78 @@ const invitePartner = async (req, res) => {
 // @route   POST /api/teams/accept-invite
 // @access  Private (Player 2)
 const acceptInvite = async (req, res) => {
-    const { token } = req.body;
+    try {
+        const { token } = req.body;
 
-    const team = await Team.findOne({ invite_token: token });
+        if (!token) {
+            return res.status(400).json({ message: 'Token is required' });
+        }
 
-    if (!team) {
-        return res.status(400).json({ message: 'Invalid token' });
+        // Fix: Case-insensitive token search (hex tokens are lowercase in DB)
+        const normalizedToken = token.trim().toLowerCase();
+        const team = await Team.findOne({ invite_token: normalizedToken });
+
+        if (!team) {
+            return res.status(400).json({ message: 'Invalid or expired token' });
+        }
+
+        // Robustness 1: User cannot join their own team
+        if (team.captain_id.toString() === req.user._id.toString()) {
+            return res.status(400).json({ message: 'You are the captain of this team. You cannot join as your own partner.' });
+        }
+
+        // Robustness 2: User must be in the same club
+        if (team.club_id.toString() !== req.user.club_id.toString()) {
+            return res.status(400).json({ message: 'This team belongs to a different club. You can only join teams within your own sector.' });
+        }
+
+        // Robustness 3: User cannot join if they already have an active team
+        const userExistingTeam = await Team.findOne({
+            $or: [{ captain_id: req.user._id }, { player_2_id: req.user._id }],
+            status: { $ne: 'INACTIVE' }
+        });
+
+        if (userExistingTeam) {
+            return res.status(400).json({
+                message: 'You are already part of an active team. Leave your current squad before joining a new one.',
+                existingTeamId: userExistingTeam._id
+            });
+        }
+
+        // Verify email matches invite_email if set (Direct Invites)
+        if (team.invite_email && req.user.email !== team.invite_email) {
+            return res.status(400).json({ message: 'This invite is not for you.' });
+        }
+
+        team.player_2_id = req.user._id;
+        team.invite_token = undefined;
+        team.invite_email = undefined;
+        team.status = 'AVAILABLE';
+
+        // Derive mixed_gender_preference from both players' play_mixed setting
+        const captain = await User.findById(team.captain_id).select('play_mixed');
+        const partner = req.user;
+        const captainPref = captain ? captain.play_mixed : null;
+        const partnerPref = partner.play_mixed || null;
+
+        if (captainPref === 'YES' && partnerPref === 'YES') {
+            team.mixed_gender_preference = 'YES';
+        } else if (captainPref === 'NO' || partnerPref === 'NO') {
+            team.mixed_gender_preference = 'NO';
+        } else {
+            team.mixed_gender_preference = 'DOES_NOT_MATTER';
+        }
+
+        await team.save();
+
+        res.json({ message: 'Invite accepted', team });
+    } catch (error) {
+        console.error('CRITICAL: Error accepting invite:', error);
+        res.status(500).json({
+            message: 'Failed to process invitation. Squad core link failed.',
+            error: error.message
+        });
     }
-
-    // Verify email matches invite_email if set
-    if (team.invite_email && req.user.email !== team.invite_email) {
-        return res.status(400).json({ message: 'This invite is not for you.' });
-    }
-
-    team.player_2_id = req.user._id;
-    team.invite_token = undefined;
-    team.invite_email = undefined;
-    team.status = 'AVAILABLE';
-
-    // Derive mixed_gender_preference from both players' play_mixed setting
-    // Rule: both YES → YES, either NO → NO, otherwise → DOES_NOT_MATTER
-    const captain = await User.findById(team.captain_id).select('play_mixed');
-    const partner = req.user; // already loaded by auth middleware
-    const captainPref = captain ? captain.play_mixed : null;
-    const partnerPref = partner.play_mixed || null;
-
-    if (captainPref === 'YES' && partnerPref === 'YES') {
-        team.mixed_gender_preference = 'YES';
-    } else if (captainPref === 'NO' || partnerPref === 'NO') {
-        team.mixed_gender_preference = 'NO';
-    } else {
-        team.mixed_gender_preference = 'DOES_NOT_MATTER';
-    }
-
-    await team.save();
-
-    res.json({ message: 'Invite accepted', team });
 };
 
 // @desc    Toggle team unavailable status
