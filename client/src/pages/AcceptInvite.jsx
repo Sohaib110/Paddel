@@ -45,7 +45,9 @@ const AcceptInvite = () => {
             setTimeout(() => navigate('/dashboard'), 2500);
         } catch (err) {
             setStatus('ERROR');
-            setMessage(err.response?.data?.message || 'Failed to process invitation.');
+            const errorMessage = err.response?.data?.message || 'Failed to process invitation.';
+            const errorDetail = err.response?.data?.error ? ` (${err.response.data.error})` : '';
+            setMessage(`${errorMessage}${errorDetail}`);
         } finally {
             setLoading(false);
         }
