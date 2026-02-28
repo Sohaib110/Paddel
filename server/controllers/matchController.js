@@ -336,35 +336,36 @@ const disputeMatch = async (req, res) => {
  */
 const getMyActiveMatch = async (req, res) => {
     try {
-        // Find user's team
-        const myTeam = await Team.findOne({
-            $or: [{ captain_id: req.user._id }, { player_2_id: req.user._id }],
-            status: { $ne: 'INACTIVE' }
-        });
+      // Find user's team
+      const myTeam = await Team.findOne({
+        $or: [{ captain_id: req.user._id }, { player_2_id: req.user._id }],
+        status: { $ne: "INACTIVE" },
+      });
 
-        if (!myTeam) {
-            return res.json(null);
-        }
+      if (!myTeam) {
+        return res.json(null);
+      }
 
-        // Find active match
-        const match = await Match.findOne({
-            $or: [{ team_a_id: myTeam._id }, { team_b_id: myTeam._id }],
-            status: { $in: ['PROPOSED', 'ACCEPTED', 'SCHEDULED', 'AWAITING_CONFIRMATION', 'DISPUTED'] }
+      // Find active match (exclude DISPUTED — those are not active playing matches)
+      const match = await Match.findOne({
+        $or: [{ team_a_id: myTeam._id }, { team_b_id: myTeam._id }],
+        status: {
+          $in: ["PROPOSED", "ACCEPTED", "SCHEDULED", "AWAITING_CONFIRMATION"],
+        },
+      })
+        .populate({
+          path: "team_a_id",
+          select: "name points captain_id",
+          populate: { path: "captain_id", select: "full_name phone_number" },
         })
-            .populate({
-                path: 'team_a_id',
-                select: 'name points captain_id',
-                populate: { path: 'captain_id', select: 'full_name phone_number' }
-            })
-            .populate({
-                path: 'team_b_id',
-                select: 'name points captain_id',
-                populate: { path: 'captain_id', select: 'full_name phone_number' }
-            })
-            .sort({ createdAt: -1 });
+        .populate({
+          path: "team_b_id",
+          select: "name points captain_id",
+          populate: { path: "captain_id", select: "full_name phone_number" },
+        })
+        .sort({ createdAt: -1 });
 
-        res.json(match);
-
+      res.json(match);
     } catch (error) {
         console.error('Error getting active match:', error);
         res.status(500).json({ message: 'Server error fetching active match', error: error.message });

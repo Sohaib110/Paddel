@@ -247,28 +247,33 @@ const getAllMatches = async (req, res) => {
  */
 const forceCreateMatch = async (req, res) => {
     try {
-        const { team_a_id, team_b_id } = req.body;
+        const { team_a_id, team_b_id, mode = "COMPETITIVE" } = req.body;
 
         const teamA = await Team.findById(team_a_id);
         const teamB = await Team.findById(team_b_id);
 
         if (!teamA || !teamB) {
-            return res.status(404).json({ message: 'One or both teams not found' });
+          return res
+            .status(404)
+            .json({ message: "One or both teams not found" });
         }
 
         if (teamA.club_id.toString() !== teamB.club_id.toString()) {
-            return res.status(400).json({ message: 'Teams must be from the same club' });
+          return res
+            .status(400)
+            .json({ message: "Teams must be from the same club" });
         }
 
         // Create match
         const weekCycle = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
 
         const match = new Match({
-            club_id: teamA.club_id,
-            team_a_id: teamA._id,
-            team_b_id: teamB._id,
-            status: 'SCHEDULED', // Admin override usually means they are ready to play
-            week_cycle: weekCycle
+          club_id: teamA.club_id,
+          team_a_id: teamA._id,
+          team_b_id: teamB._id,
+          status: "SCHEDULED",
+          mode,
+          week_cycle: weekCycle,
         });
 
         await match.save();

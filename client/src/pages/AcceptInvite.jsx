@@ -27,31 +27,51 @@ const AcceptInvite = () => {
     }, [urlToken]);
 
     const handleAccept = async (manualToken) => {
-        let tokenToUse = manualToken || token;
-        if (!tokenToUse || typeof tokenToUse !== 'string') {
-            toast.error('Token is required');
-            return;
-        }
+      let tokenToUse = manualToken || token;
+      if (!tokenToUse || typeof tokenToUse !== "string") {
+        toast.error("Token is required");
+        return;
+      }
 
-        // Normalize token to lowercase and trim whitespace
-        tokenToUse = tokenToUse.trim().toLowerCase();
-
-        setStatus('PROCESSING');
-        setLoading(true);
+      // If user pasted a full URL (e.g. http://localhost:5173/accept-invite?token=abc123),
+      // extract just the token parameter from it
+      tokenToUse = tokenToUse.trim();
+      if (tokenToUse.includes("token=")) {
         try {
-            const { data } = await api.post('/teams/accept-invite', { token: tokenToUse });
-            setStatus('SUCCESS');
-            setMessage(`You are now part of ${data.team.name}!`);
-            setTimeout(() => navigate('/dashboard'), 2500);
-        } catch (err) {
-            setStatus('ERROR');
-            const errorMessage = err.response?.data?.message || 'Failed to process invitation.';
-            const errorDetail = err.response?.data?.error ? ` (${err.response.data.error})` : '';
-            setMessage(`${errorMessage}${errorDetail}`);
-        } finally {
-            setLoading(false);
+          const urlObj = new URL(tokenToUse);
+          const extracted = urlObj.searchParams.get("token");
+          if (extracted) tokenToUse = extracted;
+        } catch {
+          // Not a valid URL — try a simple regex extraction
+          const match = tokenToUse.match(/[?&]token=([a-fA-F0-9]+)/);
+          if (match) tokenToUse = match[1];
         }
-    };
+      }
+
+      // Normalize token to lowercase
+      tokenToUse = tokenToUse.toLowerCase();
+
+      setStatus("PROCESSING");
+      setLoading(true);
+      try {
+        const { data } = await api.post("/teams/accept-invite", {
+          token: tokenToUse,
+        });
+        setStatus("SUCCESS");
+        setMessage(`You are now part of ${data.team.name}!`);
+        setTimeout(() => navigate("/dashboard"), 2500);
+      } catch (err) {
+        setStatus("ERROR");
+        const errorMessage =
+          err.response?.data?.message || "Failed to process invitation.";
+        const errorDetail = err.response?.data?.error
+          ? ` (${err.response.data.error})`
+          : "";
+        setMessage(`${errorMessage}${errorDetail}`);
+      } finally {
+        setLoading(false);
+      }
+    };;
 
     return (
         <div className="min-h-screen bg-light-bg flex items-center justify-center p-6 relative overflow-hidden font-sans">

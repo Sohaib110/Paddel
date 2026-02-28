@@ -43,3 +43,5 @@ Thumbs.db
 IMPLEMENTATION_PLAN.md
 master-prompt.md
 TESTING_GUIDE.md
+server/testSeed.js
+CLIENT_TESTING_GUIDE.md

@@ -118,95 +118,134 @@ const invitePartner = async (req, res) => {
 // @access  Private (Player 2)
 const acceptInvite = async (req, res) => {
     try {
-        const { token } = req.body;
-        console.log(`[INVITE] Attempting to accept invite for user ${req.user?._id} (${req.user?.email}) with token: ${token}`);
+      const { token } = req.body;
+      console.log(
+        `[INVITE] Attempting to accept invite for user ${req.user?._id} (${req.user?.email}) with token: ${token}`,
+      );
 
-        if (!token) {
-            return res.status(400).json({ message: 'Token is required' });
-        }
+      if (!token) {
+        return res.status(400).json({ message: "Token is required" });
+      }
 
-        // Fix: Case-insensitive token search (hex tokens are lowercase in DB)
-        const normalizedToken = token.trim().toLowerCase();
-        const team = await Team.findOne({ invite_token: normalizedToken });
-
-        if (!team) {
-            console.log(`[INVITE] FAILED: Invalid token ${normalizedToken}`);
-            return res.status(400).json({ message: 'Invalid or expired token' });
-        }
-
-        console.log(`[INVITE] Found team: ${team.name} (${team._id}) in club ${team.club_id}`);
-
-        // Robustness 0: Team is already full
-        if (team.player_2_id) {
-            console.log(`[INVITE] FAILED: Team ${team._id} already has a partner (${team.player_2_id})`);
-            return res.status(400).json({ message: 'This team already has a full squad.' });
-        }
-
-        // Robustness 1: User cannot join their own team
-        if (team.captain_id.toString() === req.user._id.toString()) {
-            console.log(`[INVITE] FAILED: User ${req.user._id} is the captain`);
-            return res.status(400).json({ message: 'You are the captain of this team. You cannot join as your own partner.' });
-        }
-
-        // Robustness 2: User must be in the same club
-        if (team.club_id.toString() !== req.user.club_id.toString()) {
-            console.log(`[INVITE] FAILED: Club mismatch. Team: ${team.club_id}, User: ${req.user.club_id}`);
-            return res.status(400).json({ message: 'This team belongs to a different club. You can only join teams within your own sector.' });
-        }
-
-        // Robustness 3: User cannot join if they already have an active team
-        const userExistingTeam = await Team.findOne({
-            $or: [{ captain_id: req.user._id }, { player_2_id: req.user._id }],
-            status: { $ne: 'INACTIVE' }
-        });
-
-        if (userExistingTeam) {
-            console.log(`[INVITE] FAILED: User ${req.user._id} already has active team ${userExistingTeam._id}`);
-            return res.status(400).json({
-                message: 'You are already part of an active team. Leave your current squad before joining a new one.',
-                existingTeamId: userExistingTeam._id
-            });
-        }
-
-        // Verify email matches invite_email if set (Direct Invites)
-        if (team.invite_email && req.user.email !== team.invite_email) {
-            console.log(`[INVITE] FAILED: Email mismatch. Required: ${team.invite_email}, Actual: ${req.user.email}`);
-            return res.status(400).json({ message: 'This invite is not for you.' });
-        }
-
-        console.log(`[INVITE] Validation successful. Updating team state...`);
-
-        team.player_2_id = req.user._id;
-        team.invite_token = undefined;
-        team.invite_email = undefined;
-        team.status = 'AVAILABLE';
-
-        // Derive mixed_gender_preference from both players' play_mixed setting
-        const captain = await User.findById(team.captain_id).select('play_mixed');
-        const partner = req.user;
-        const captainPref = captain ? captain.play_mixed : null;
-        const partnerPref = partner.play_mixed || null;
-
-        if (captainPref === 'YES' && partnerPref === 'YES') {
-            team.mixed_gender_preference = 'YES';
-        } else if (captainPref === 'NO' || partnerPref === 'NO') {
-            team.mixed_gender_preference = 'NO';
-        } else {
-            team.mixed_gender_preference = 'DOES_NOT_MATTER';
-        }
-
+      // If a full URL was accidentally sent (e.g. from Postman), extract the token param
+      let rawToken = token.trim();
+      if (rawToken.includes("token=")) {
         try {
-            await team.save();
-        } catch (saveError) {
-            console.error('[INVITE] CRITICAL: team.save() failed:', saveError);
-            return res.status(400).json({
-                message: 'Failed to finalize squad link. Database validation error.',
-                error: saveError.message
-            });
+          const urlObj = new URL(rawToken);
+          rawToken = urlObj.searchParams.get("token") || rawToken;
+        } catch {
+          const match = rawToken.match(/[?&]token=([a-fA-F0-9]+)/);
+          if (match) rawToken = match[1];
         }
+      }
 
-        console.log(`[INVITE] SUCCESS: User ${req.user._id} joined team ${team._id}`);
-        res.json({ message: 'Invite accepted', team });
+      // Fix: Case-insensitive token search (hex tokens are lowercase in DB)
+      const normalizedToken = rawToken.toLowerCase();
+      const team = await Team.findOne({ invite_token: normalizedToken });
+
+      if (!team) {
+        console.log(`[INVITE] FAILED: Invalid token ${normalizedToken}`);
+        return res.status(400).json({ message: "Invalid or expired token" });
+      }
+
+      console.log(
+        `[INVITE] Found team: ${team.name} (${team._id}) in club ${team.club_id}`,
+      );
+
+      // Robustness 0: Team is already full
+      if (team.player_2_id) {
+        console.log(
+          `[INVITE] FAILED: Team ${team._id} already has a partner (${team.player_2_id})`,
+        );
+        return res
+          .status(400)
+          .json({ message: "This team already has a full squad." });
+      }
+
+      // Robustness 1: User cannot join their own team
+      if (team.captain_id.toString() === req.user._id.toString()) {
+        console.log(`[INVITE] FAILED: User ${req.user._id} is the captain`);
+        return res
+          .status(400)
+          .json({
+            message:
+              "You are the captain of this team. You cannot join as your own partner.",
+          });
+      }
+
+      // Robustness 2: User must be in the same club
+      if (team.club_id.toString() !== req.user.club_id.toString()) {
+        console.log(
+          `[INVITE] FAILED: Club mismatch. Team: ${team.club_id}, User: ${req.user.club_id}`,
+        );
+        return res
+          .status(400)
+          .json({
+            message:
+              "This team belongs to a different club. You can only join teams within your own sector.",
+          });
+      }
+
+      // Robustness 3: User cannot join if they already have an active team
+      const userExistingTeam = await Team.findOne({
+        $or: [{ captain_id: req.user._id }, { player_2_id: req.user._id }],
+        status: { $ne: "INACTIVE" },
+      });
+
+      if (userExistingTeam) {
+        console.log(
+          `[INVITE] FAILED: User ${req.user._id} already has active team ${userExistingTeam._id}`,
+        );
+        return res.status(400).json({
+          message:
+            "You are already part of an active team. Leave your current squad before joining a new one.",
+          existingTeamId: userExistingTeam._id,
+        });
+      }
+
+      // Verify email matches invite_email if set (Direct Invites)
+      if (team.invite_email && req.user.email !== team.invite_email) {
+        console.log(
+          `[INVITE] FAILED: Email mismatch. Required: ${team.invite_email}, Actual: ${req.user.email}`,
+        );
+        return res.status(400).json({ message: "This invite is not for you." });
+      }
+
+      console.log(`[INVITE] Validation successful. Updating team state...`);
+
+      team.player_2_id = req.user._id;
+      team.invite_token = undefined;
+      team.invite_email = undefined;
+      team.status = "AVAILABLE";
+
+      // Derive mixed_gender_preference from both players' play_mixed setting
+      const captain = await User.findById(team.captain_id).select("play_mixed");
+      const partner = req.user;
+      const captainPref = captain ? captain.play_mixed : null;
+      const partnerPref = partner.play_mixed || null;
+
+      if (captainPref === "YES" && partnerPref === "YES") {
+        team.mixed_gender_preference = "YES";
+      } else if (captainPref === "NO" || partnerPref === "NO") {
+        team.mixed_gender_preference = "NO";
+      } else {
+        team.mixed_gender_preference = "DOES_NOT_MATTER";
+      }
+
+      try {
+        await team.save();
+      } catch (saveError) {
+        console.error("[INVITE] CRITICAL: team.save() failed:", saveError);
+        return res.status(400).json({
+          message: "Failed to finalize squad link. Database validation error.",
+          error: saveError.message,
+        });
+      }
+
+      console.log(
+        `[INVITE] SUCCESS: User ${req.user._id} joined team ${team._id}`,
+      );
+      res.json({ message: "Invite accepted", team });
     } catch (error) {
         console.error('CRITICAL: Error accepting invite:', error);
         res.status(500).json({
