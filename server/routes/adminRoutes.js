@@ -38,12 +38,14 @@ router.delete('/teams/remove-inactive', removeInactiveTeams);
 // Match Management
 router.get('/matches', getAllMatches);
 router.post('/matches/force-create', forceCreateMatch);
+router.post('/matches/force', forceCreateMatch); // [B6] alias — frontend uses /matches/force
 router.put('/matches/:id/override', overrideMatchResult);
 router.delete('/matches/:id', deleteMatch);
 
 // Dispute Management
 router.get('/disputes', getAllDisputes);
 router.put('/disputes/:id/resolve', resolveDispute);
+router.post('/disputes/:id/resolve', resolveDispute); // [B7] alias — frontend uses POST
 
 // Statistics
 router.get('/stats', getPlatformStats);

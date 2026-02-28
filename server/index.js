@@ -45,7 +45,8 @@ app.use('/api/clubs', require('./routes/clubRoutes'));
 app.use('/api/teams', require('./routes/teamRoutes'));
 app.use('/api/matches', require('./routes/matchRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
-app.use('/api/notifications', notificationRoutes); // New route
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/friendly', require('./routes/friendlyRoutes')); // Friendly mode
 
 app.get('/api/health', (req, res) => {
     const fs = require('fs');

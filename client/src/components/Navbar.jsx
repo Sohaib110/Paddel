@@ -81,6 +81,9 @@ const Navbar = () => {
                                     {user.full_name.split(' ')[0]}
                                 </span>
                                 <div className="flex items-center gap-2">
+                            <Button size="sm" onClick={() => navigate('/friendly')} variant="outline">
+                                        Friendly
+                                    </Button>
                                     <Button size="sm" onClick={() => navigate('/dashboard')}>
                                         Dashboard
                                     </Button>
@@ -141,6 +144,9 @@ const Navbar = () => {
                                             Admin
                                         </Button>
                                     )}
+                                    <Button onClick={() => navigate('/friendly')} variant="outline" className="w-full">
+                                        Friendly Mode
+                                    </Button>
                                     <Button onClick={() => navigate('/dashboard')} className="w-full">
                                         Dashboard
                                     </Button>

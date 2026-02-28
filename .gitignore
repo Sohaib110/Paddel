@@ -40,3 +40,6 @@ Thumbs.db
 ## Misc
 *.pem
 *.local
+IMPLEMENTATION_PLAN.md
+master-prompt.md
+TESTING_GUIDE.md

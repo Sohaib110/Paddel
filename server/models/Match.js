@@ -18,13 +18,14 @@ const MatchSchema = new mongoose.Schema({
     },
 
     // Result Logic
-    result: { type: String, enum: ['WIN', 'LOSS'] }, // From Team A perspective
+    result: { type: String, enum: ['WIN', 'LOSS'] }, // From Team A perspective (WIN = teamA_win, LOSS = teamB_win)
     score: { type: String }, // Optional score string (e.g. "6-4 6-4")
     submitted_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     confirmation_deadline: { type: Date }, // 48 hours from submission
 
     week_cycle: { type: Number, required: true }, // For "One match per 7-day cycle" tracking
     match_deadline: { type: Date }, // 7 days from match creation (spec 1.3 step 8)
+    completed_at: { type: Date }, // [B2] — set when match is finalized
 
 }, { timestamps: true });
 

@@ -1,5 +1,6 @@
 const Notification = require('../models/Notification');
 const User = require('../models/User');
+const { pushToUser } = require('./sseService');
 
 /**
  * Create a notification for a user
@@ -17,6 +18,10 @@ const createNotification = async ({ userId, type, title, message, matchId = null
         });
 
         await notification.save({ session });
+
+        // Push real-time SSE event (non-blocking — fire and forget)
+        setImmediate(() => pushToUser(userId, notification.toObject()));
+
         return { success: true, notification };
     } catch (error) {
         console.error('Error creating notification:', error);

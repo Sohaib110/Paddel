@@ -1,8 +1,9 @@
 const Match = require('../models/Match');
 const Team = require('../models/Team');
+const User = require('../models/User');
 const Dispute = require('../models/Dispute');
 const { isTeamEligible, findBestOpponent, createMatchWithLocking, finalizeMatchResult } = require('../services/matchmakingService');
-const { notifyMatchCreated, notifyResultSubmitted, notifyResultConfirmed } = require('../services/notificationService');
+const { notifyMatchCreated, notifyResultSubmitted, notifyResultConfirmed, createNotification } = require('../services/notificationService');
 
 /**
  * Captain-initiated matchmaking
@@ -301,6 +302,22 @@ const disputeMatch = async (req, res) => {
         // Update match status
         match.status = 'DISPUTED';
         await match.save();
+
+        // [B4] Notify all admin users about the dispute
+        const adminUsers = await User.find({ role: 'ADMIN' }).select('_id');
+        await Promise.all(
+            adminUsers.map(admin =>
+                createNotification({
+                    userId: admin._id,
+                    type: 'DISPUTE_CREATED',
+                    title: 'Match Dispute Raised',
+                    message: `${disputingTeam.name} has disputed a match result. Reason: ${reason.trim()}`,
+                    matchId: match._id,
+                    teamId: disputingTeam._id,
+                    actionUrl: '/admin'
+                })
+            )
+        );
 
         res.json({ message: 'Dispute submitted. Admin will review.', dispute });
 

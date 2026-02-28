@@ -1,4 +1,34 @@
 const Notification = require('../models/Notification');
+const { registerSSEClient, unregisterSSEClient } = require('../services/sseService');
+
+/**
+ * Real-time SSE stream
+ * GET /api/notifications/stream
+ * Keeps connection open and sends events when new notifications arrive.
+ */
+const streamNotifications = (req, res) => {
+    const userId = req.user._id;
+
+    // SSE headers
+    res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no',   // Disable nginx buffering
+    });
+    res.flushHeaders();
+
+    // Signal a successful connection to the client
+    res.write(`data: ${JSON.stringify({ type: 'connected', userId: userId.toString() })}\n\n`);
+
+    // Register this connection
+    registerSSEClient(userId, res);
+
+    // Clean up when client disconnects
+    req.on('close', () => {
+        unregisterSSEClient(userId, res);
+    });
+};
 
 /**
  * Get all notifications for current user
@@ -90,6 +120,7 @@ const deleteNotification = async (req, res) => {
 };
 
 module.exports = {
+    streamNotifications,
     getNotifications,
     markAsRead,
     markAllAsRead,

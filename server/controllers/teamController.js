@@ -1,5 +1,7 @@
 const Team = require('../models/Team');
 const User = require('../models/User');
+const Dispute = require('../models/Dispute');
+const { isTeamEligible } = require('../services/matchmakingService');
 const crypto = require('crypto');
 
 // @desc    Create a new team
@@ -393,6 +395,52 @@ const queueNextMatch = async (req, res) => {
     }
 };
 
+// @desc    Get team eligibility status [B5]
+// @route   GET /api/teams/:teamId/eligibility
+// @access  Private
+const getEligibility = async (req, res) => {
+    try {
+        const team = await Team.findById(req.params.teamId);
+        if (!team) {
+            return res.status(404).json({ message: 'Team not found' });
+        }
+
+        // Fetch active disputes to check if team is blocked
+        const activeDisputes = await Dispute.find({
+            status: { $in: ['PENDING', 'UNDER_REVIEW'] }
+        }).populate('match_id');
+
+        const disputedTeamIds = activeDisputes.reduce((acc, dispute) => {
+            if (dispute.match_id) {
+                acc.push(dispute.match_id.team_a_id.toString());
+                acc.push(dispute.match_id.team_b_id.toString());
+            }
+            return acc;
+        }, []);
+
+        const result = isTeamEligible(team, disputedTeamIds);
+
+        const response = {
+            eligible: result.eligible,
+            reason: result.reason,
+            status: team.status,
+            is_queued: team.is_queued,
+            cooldown_expires_at: team.cooldown_expires_at || null,
+        };
+
+        if (team.cooldown_expires_at) {
+            const now = Date.now();
+            const msLeft = new Date(team.cooldown_expires_at).getTime() - now;
+            response.cooldown_remaining_ms = Math.max(0, msLeft);
+        }
+
+        res.json(response);
+    } catch (error) {
+        console.error('Error checking eligibility:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
 module.exports = {
     createTeam,
     invitePartner,
@@ -401,5 +449,6 @@ module.exports = {
     getLeagueTable,
     toggleSoloPool,
     toggleUnavailable,
-    queueNextMatch
+    queueNextMatch,
+    getEligibility
 };

@@ -6,7 +6,7 @@ import Input from '../components/Input';
 import { Users, UserPlus, Calendar, Activity, Trophy, Shield, Search, PlusCircle, Trash2, CheckCircle, XCircle, AlertCircle, Settings, Layout, ClipboardList, Trash, Clock, ChevronRight, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
 import BackButton from '../components/BackButton';
-import { motion, AnimatePresence } from 'framer-motion';
+import {  AnimatePresence } from 'framer-motion';
 
 const AdminDashboard = () => {
     useAuth();
@@ -82,7 +82,7 @@ const AdminDashboard = () => {
     const handleForceMatch = async (e) => {
         e.preventDefault();
         try {
-            await api.post('/admin/matches/force', forceMatchData);
+            await api.post('/admin/matches/force-create', forceMatchData); // [F6] fixed URL
             toast.success('Match override initiated');
             setShowForceMatch(false);
             fetchAdminData();
@@ -106,7 +106,7 @@ const AdminDashboard = () => {
     const handleOverrideResult = async (e) => {
         e.preventDefault();
         try {
-            await api.post(`/admin/matches/${selectedMatch._id}/override`, overrideData);
+            await api.put(`/admin/matches/${selectedMatch._id}/override`, overrideData); // [F7] fixed to PUT
             toast.success('Reality adjusted');
             setShowOverrideResult(false);
             fetchAdminData();

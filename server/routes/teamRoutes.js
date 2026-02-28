@@ -9,7 +9,8 @@ const {
     getLeagueTable,
     toggleSoloPool,
     toggleUnavailable,
-    queueNextMatch
+    queueNextMatch,
+    getEligibility
 } = require('../controllers/teamController');
 
 // Team management
@@ -18,6 +19,7 @@ router.post('/:id/invite', protect, invitePartner);
 router.post('/accept-invite', protect, acceptInvite);
 router.get('/me', protect, getMyTeam);
 router.get('/league/:clubId', getLeagueTable);
+router.get('/:teamId/eligibility', protect, getEligibility); // [B5]
 
 // Team features
 router.post('/toggle-solo-pool', protect, toggleSoloPool);

@@ -9,6 +9,7 @@ import Landing from './pages/Landing';
 import About from './pages/About';
 import Privacy from './pages/Privacy';
 import Contact from './pages/Contact';
+import FriendlyMode from './pages/FriendlyMode';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -17,6 +18,14 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 const ProtectedRoute = ({ children }) => {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
+  return children;
+};
+
+// [F8] Redirects to /dashboard if authenticated but not admin
+const AdminRoute = ({ children }) => {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.role !== 'ADMIN') return <Navigate to="/dashboard" replace />;
   return children;
 };
 
@@ -33,8 +42,9 @@ function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/friendly" element={<ProtectedRoute><FriendlyMode /></ProtectedRoute>} />
               <Route path="/accept-invite" element={<ProtectedRoute><AcceptInvite /></ProtectedRoute>} />
-              <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+              <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
               <Route path="/about" element={<About />} />
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/contact" element={<Contact />} />

@@ -317,8 +317,9 @@ const finalizeMatchResult = async (match) => {
             { session }
         );
 
-        // Update match status to COMPLETED (Finalized)
+        // Update match status to COMPLETED (Finalized) — also record completedAt [B3]
         match.status = 'COMPLETED';
+        match.completed_at = new Date();
         await match.save({ session });
 
         await session.commitTransaction();

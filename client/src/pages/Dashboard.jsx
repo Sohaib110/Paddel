@@ -113,14 +113,35 @@ const Dashboard = () => {
     const [showDispute, setShowDispute] = useState(false);
     const [matchMode, setMatchMode] = useState('COMPETITIVE');
     const [matchExperience, setMatchExperience] = useState(user?.experience_level || '0-1 Months');
+    // Live ticker for countdown timers [F2][F3]
+    const [now, setNow] = useState(new Date());
 
     useEffect(() => {
         fetchData();
     }, []);
 
+    // Tick every second for countdown timers
+    useEffect(() => {
+        const tick = setInterval(() => setNow(new Date()), 1000);
+        return () => clearInterval(tick);
+    }, []);
+
     // Guard: if user becomes null (logout), don't render anything
     // MUST be placed AFTER all hooks to avoid violating Rules of Hooks
     if (!user) return null;
+
+    // Helper: format ms remaining as "Xd Xh Xm" or "Xh Xm Xs" [F2][F3]
+    const formatCountdown = (targetDate) => {
+        if (!targetDate) return null;
+        const diff = new Date(targetDate).getTime() - now.getTime();
+        if (diff <= 0) return 'Expired';
+        const d = Math.floor(diff / 86400000);
+        const h = Math.floor((diff % 86400000) / 3600000);
+        const m = Math.floor((diff % 3600000) / 60000);
+        const s = Math.floor((diff % 60000) / 1000);
+        if (d > 0) return `${d}d ${h}h ${m}m`;
+        return `${h}h ${m}m ${s}s`;
+    };
 
     const fetchData = async () => {
         try {
@@ -230,6 +251,17 @@ const Dashboard = () => {
             fetchData();
         } catch {
             toast.error('Failed to schedule match');
+        }
+    };
+
+    // [F1] Queue Next Match — available during COOLDOWN
+    const handleQueueNextMatch = async () => {
+        try {
+            const { data } = await api.post('/teams/queue-next');
+            toast.success(data.message);
+            fetchData();
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to update queue');
         }
     };
 
@@ -477,7 +509,17 @@ const Dashboard = () => {
 
                                                 {/* WhatsApp Contact */}
                                                 {(activeMatch.status === 'PROPOSED' || activeMatch.status === 'ACCEPTED' || activeMatch.status === 'SCHEDULED') && (
-                                                    <div className="mb-6 md:mb-8 p-3 md:p-4 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/10 transition-colors">
+                                                    <>
+                                                        {/* [F3] 7-day match deadline countdown */}
+                                                        {activeMatch.match_deadline && (
+                                                            <div className="mb-4 px-3 py-2 bg-white/5 border border-white/10 rounded-xl flex items-center justify-between">
+                                                                <span className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-text-tertiary">Mission Expires</span>
+                                                                <span className={`text-[10px] md:text-xs font-black tabular-nums ${formatCountdown(activeMatch.match_deadline) === 'Expired' ? 'text-rose-400' : 'text-amber-400'}`}>
+                                                                    {formatCountdown(activeMatch.match_deadline)}
+                                                                </span>
+                                                            </div>
+                                                        )}
+                                                        <div className="mb-6 md:mb-8 p-3 md:p-4 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/10 transition-colors">
                                                         <div className="flex items-center gap-2 md:gap-3 min-w-0">
                                                             <div className="w-8 h-8 md:w-10 md:h-10 shrink-0 bg-padel-blue/10 rounded-xl flex items-center justify-center">
                                                                 <MessageSquare size={16} className="text-padel-blue" />
@@ -504,6 +546,7 @@ const Dashboard = () => {
                                                             </svg>
                                                         </a>
                                                     </div>
+                                                    </>
                                                 )}
 
                                                 {(activeMatch.status === 'ACCEPTED' || activeMatch.status === 'SCHEDULED') && (
@@ -553,7 +596,13 @@ const Dashboard = () => {
                                                 {activeMatch.status === 'AWAITING_CONFIRMATION' && activeMatch.submitted_by === user?._id && (
                                                     <div className="bg-white/10 border border-white/20 p-3 md:p-4 rounded-2xl text-center">
                                                         <p className="text-[10px] md:text-xs font-bold text-white uppercase tracking-widest">Signal Transmitted</p>
-                                                        <p className="text-[8px] md:text-[10px] text-text-tertiary mt-1 italic">Waiting for opponent confirmation (48h)</p>
+                                                        {/* [F3] 48-hour confirmation countdown */}
+                                                        {activeMatch.confirmation_deadline && (
+                                                            <p className="text-[9px] md:text-[10px] text-amber-400 font-black tabular-nums mt-1">
+                                                                Auto-confirms in {formatCountdown(activeMatch.confirmation_deadline)}
+                                                            </p>
+                                                        )}
+                                                        <p className="text-[8px] md:text-[10px] text-text-tertiary mt-1 italic">Waiting for opponent confirmation</p>
                                                     </div>
                                                 )}
 
@@ -626,6 +675,55 @@ const Dashboard = () => {
                                             <Button onClick={handleFindMatch} size="lg" className="w-full py-5 rounded-2xl shadow-xl shadow-padel-blue/20">
                                                 <Search className="w-5 h-5 mr-2" /> Find Adversary
                                             </Button>
+                                        </div>
+                                    )}
+
+                                    {/* [F1][F2] Cooldown Section — shown when team.status === 'COOLDOWN' */}
+                                    {!activeMatch && team.status === 'COOLDOWN' && (
+                                        <div className="bg-white rounded-[2.5rem] border border-light-border shadow-xl overflow-hidden glass-card">
+                                            <div className="bg-rose-50/60 p-6 md:p-8 border-b border-rose-100">
+                                                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-rose-400 mb-1">Recovery Phase</p>
+                                                <h4 className="text-xl font-black italic tracking-tighter text-text-primary uppercase">Cooldown Active</h4>
+                                            </div>
+                                            <div className="p-6 md:p-8 space-y-5">
+                                                {/* Cooldown countdown timer */}
+                                                {team.cooldown_expires_at && (
+                                                    <div className="bg-rose-50 rounded-2xl p-4 text-center border border-rose-100">
+                                                        <p className="text-[9px] font-black uppercase tracking-widest text-rose-400 mb-1">Time Remaining</p>
+                                                        <p className="text-2xl font-black italic tracking-tighter text-rose-600 tabular-nums">
+                                                            {formatCountdown(team.cooldown_expires_at)}
+                                                        </p>
+                                                        <p className="text-[9px] text-rose-300 mt-1 font-semibold">
+                                                            Ends {new Date(team.cooldown_expires_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                        </p>
+                                                    </div>
+                                                )}
+
+                                                {/* Queue Next Game button */}
+                                                {team.is_queued ? (
+                                                    <div className="flex items-center gap-3 p-4 bg-padel-blue/5 border border-padel-blue/20 rounded-2xl">
+                                                        <CheckCircle2 className="text-padel-blue shrink-0" size={20} />
+                                                        <div>
+                                                            <p className="text-[10px] font-black uppercase tracking-widest text-padel-blue">Queued ✓</p>
+                                                            <p className="text-[9px] text-text-tertiary mt-0.5 font-medium">Your next match will be created automatically when cooldown ends.</p>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="space-y-2">
+                                                        <p className="text-[9px] text-text-tertiary font-medium italic pl-1">Pre-register for the next match cycle before cooldown ends.</p>
+                                                        <Button onClick={handleQueueNextMatch} size="md" variant="outline" className="w-full border-padel-blue/40 text-padel-blue hover:bg-padel-blue/5">
+                                                            <Zap className="w-4 h-4 mr-2" /> Queue My Next Game
+                                                        </Button>
+                                                    </div>
+                                                )}
+
+                                                {/* Cancel queue if already queued */}
+                                                {team.is_queued && (
+                                                    <Button onClick={handleQueueNextMatch} size="sm" variant="outline" className="w-full text-text-tertiary border-light-border hover:border-rose-200 hover:text-rose-500 text-[10px]">
+                                                        Cancel Queue
+                                                    </Button>
+                                                )}
+                                            </div>
                                         </div>
                                     )}
 
